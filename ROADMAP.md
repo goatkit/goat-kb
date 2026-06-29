@@ -13,13 +13,13 @@
 - [x] Define error codes for KB operations
 
 ## Milestone 2: Database Schema & Multi-tenancy
-- [ ] Integrate with HostAPI for database access (no direct DB connections)
-- [ ] Implement proper SQL parameter binding using ? placeholders
-- [ ] Design KB tables with org_id column for multi-tenancy
-- [ ] Ensure all queries automatically include org_id from HostAPI.OrgID()
-- [ ] Map OTRS FAQ schema to GoatFlow KB schema during import
-- [ ] Preserve org_id context throughout import process
-- [ ] Handle database errors gracefully with appropriate HTTP status codes
+- [x] Integrate with HostAPI for database access (no direct DB connections)
+- [x] Implement proper SQL parameter binding using ? placeholders
+- [x] Design KB tables with org_id column for multi-tenancy
+- [x] Ensure all queries automatically include org_id from HostAPI.OrgID()
+- [x] Map OTRS FAQ schema to GoatFlow KB schema during import
+- [x] Preserve org_id context throughout import process
+- [x] Handle database errors gracefully with appropriate HTTP status codes
 
 ## Milestone 3: Search Functionality (Zinc Integration)
 - [ ] Integrate zinc for full-text search indexing of KB articles

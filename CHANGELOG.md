@@ -28,3 +28,19 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - Roadmap Milestone 1 marked complete after implementing the gRPC plugin foundation.
 - Runtime choice documented as gRPC instead of WASM because the KB module is I/O-heavy: zinc search, database access, OTRS FAQ import, and LLM retrieval.
+
+### Milestone 2 — Database Schema & Multi-tenancy
+
+- Versioned schema migrations (`internal/kb/schema.go`) with a `gk_kb_schema_version` tracking table, run idempotently from `InitWithHost`. DDL is dialect-aware (MySQL/MariaDB and PostgreSQL) via a runtime dialect probe, since `ConvertPlaceholders` rewrites `?` placeholders but not DDL keywords (`AUTO_INCREMENT` vs `SERIAL`).
+- KB tables designed for multi-tenancy: `gk_kb_articles`, `gk_kb_categories`, and `gk_kb_attachments`, every row carrying `org_id` with indexes on `(org_id, status)`, `(org_id, category)`, `(org_id, visibility)`, and a unique `(org_id, slug)` key.
+- `gk_kb_attachments` links articles to files stored in the HostAPI file-storage layer (local or S3, swappable via platform config), supporting multiple attachments per article. Only linkage + `file_key` live in the DB; bytes stay in the swappable backend.
+- OTRS/Znuny FAQ import (`internal/kb/import.go`) parsing `<FAQExport>`/`<FAQItem>` XML, mapping `Title`/`Field_1`/`Field_2`/`Keywords`/`Category`/`ValidID` to the KB schema with safe defaults for missing fields and draft-status for invalid OTRS states.
+- Import is idempotent: the `(org_id, source, source_id)` lookup upserts existing articles instead of duplicating, keyed on the OTRS `FAQID`.
+- `org_id` is preserved on every imported row from `HostAPI.OrgID()`; cross-org isolation is enforced by the `org_id = ?` predicate on every query.
+- Error responses carry HTTP status codes via the `{"error": msg, "status": N}` convention (404/400/500/502/503), surfaced through the dynamic router.
+- Schema, dialect-detection, import mapping, idempotency, and multi-tenant isolation test suite (19 new tests).
+
+### Platform improvements (goatflow)
+
+- `buildPluginArgs` now passes non-JSON request bodies (XML, CSV, plain text) through to plugins as `_body` / `_content_type`, capped at 4 MiB. Previously such payloads were silently dropped because only JSON bodies were merged into args.
+- The dynamic router honours plugin error responses of the form `{"error": msg, "status": N}` (N in 400–599) and maps them to the matching HTTP status, so plugins can signal not-found / bad-request / server errors instead of every error surfacing as 200-OK-with-body.

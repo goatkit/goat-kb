@@ -35,15 +35,16 @@ type articleSummary struct {
 // handleList returns a paginated list of KB articles scoped to the caller's org.
 func (p *Plugin) handleList(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
 	if p.host == nil {
-		return nil, fmt.Errorf("host API not available")
+		return errorResponse(503, "host API not available")
 	}
 
 	params := listParams{Page: 1, PerPage: 20}
 	if len(args) > 0 {
 		if err := json.Unmarshal(args, &params); err != nil {
-			return nil, fmt.Errorf("invalid list params: %w", err)
+			return errorResponse(400, "invalid list params: "+err.Error())
 		}
 	}
+
 	if params.Page < 1 {
 		params.Page = 1
 	}
@@ -57,7 +58,7 @@ func (p *Plugin) handleList(ctx context.Context, args json.RawMessage) (json.Raw
 	query := "SELECT id, title, summary, category, visibility, updated_at FROM gk_kb_articles WHERE org_id = ? AND status = 'published' ORDER BY updated_at DESC LIMIT ? OFFSET ?"
 	rows, err := p.host.DBQuery(ctx, query, orgID, params.PerPage, offset)
 	if err != nil {
-		return nil, fmt.Errorf("query articles: %w", err)
+		return errorResponse(500, "query articles: "+err.Error())
 	}
 
 	articles := make([]articleSummary, 0, len(rows))
@@ -75,7 +76,7 @@ func (p *Plugin) handleList(ctx context.Context, args json.RawMessage) (json.Raw
 	countQuery := "SELECT COUNT(*) as total FROM gk_kb_articles WHERE org_id = ? AND status = 'published'"
 	countRows, err := p.host.DBQuery(ctx, countQuery, orgID)
 	if err != nil {
-		return nil, fmt.Errorf("count articles: %w", err)
+		return errorResponse(500, "count articles: "+err.Error())
 	}
 	total := 0
 	if len(countRows) > 0 {
@@ -94,14 +95,14 @@ func (p *Plugin) handleList(ctx context.Context, args json.RawMessage) (json.Raw
 // handleRecentWidget returns recent articles for the dashboard widget.
 func (p *Plugin) handleRecentWidget(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
 	if p.host == nil {
-		return nil, fmt.Errorf("host API not available")
+		return errorResponse(503, "host API not available")
 	}
 
 	orgID := p.host.OrgID(ctx)
 	query := "SELECT id, title, summary FROM gk_kb_articles WHERE org_id = ? AND status = 'published' ORDER BY updated_at DESC LIMIT 5"
 	rows, err := p.host.DBQuery(ctx, query, orgID)
 	if err != nil {
-		return nil, fmt.Errorf("query recent articles: %w", err)
+		return errorResponse(500, "query recent articles: "+err.Error())
 	}
 
 	articles := make([]articleSummary, 0, len(rows))
@@ -140,15 +141,15 @@ type searchHit struct {
 // handleSearch performs a full-text search via zinc, scoped to the caller's org.
 func (p *Plugin) handleSearch(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
 	if p.host == nil {
-		return nil, fmt.Errorf("host API not available")
+		return errorResponse(503, "host API not available")
 	}
 
 	params := searchParams{Page: 1}
 	if err := json.Unmarshal(args, &params); err != nil {
-		return nil, fmt.Errorf("invalid search params: %w", err)
+		return errorResponse(400, "invalid search params: "+err.Error())
 	}
 	if params.Query == "" {
-		return nil, fmt.Errorf("kb:invalid_search: query is required")
+		return errorResponse(400, "search query is required")
 	}
 	if params.Page < 1 {
 		params.Page = 1
@@ -161,10 +162,10 @@ func (p *Plugin) handleSearch(ctx context.Context, args json.RawMessage) (json.R
 	searchBody := fmt.Sprintf(`{"search":{"query":"%s","org_id":%d}}`, jsonEscape(params.Query), orgID)
 	status, body, err := p.host.HTTPRequest(ctx, "POST", "http://zinc:4080/api/v1/kb_articles/_search", nil, []byte(searchBody))
 	if err != nil {
-		return nil, fmt.Errorf("zinc search request failed: %w", err)
+		return errorResponse(502, "zinc search request failed: "+err.Error())
 	}
 	if status != 200 {
-		return nil, fmt.Errorf("zinc search returned status %d: %s", status, string(body))
+		return errorResponse(502, fmt.Sprintf("zinc search returned status %d: %s", status, string(body)))
 	}
 
 	// Parse zinc response — the exact structure depends on zinc's API.
@@ -186,7 +187,7 @@ func (p *Plugin) handleSearch(ctx context.Context, args json.RawMessage) (json.R
 		} `json:"hits"`
 	}
 	if err := json.Unmarshal(body, &zincResp); err != nil {
-		return nil, fmt.Errorf("parse zinc response: %w", err)
+		return errorResponse(502, "parse zinc response: "+err.Error())
 	}
 
 	hits := make([]searchHit, 0, len(zincResp.Hits.Hits))
@@ -228,7 +229,7 @@ type articleDetail struct {
 // handleArticle returns a single KB article after permission verification.
 func (p *Plugin) handleArticle(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
 	if p.host == nil {
-		return nil, fmt.Errorf("host API not available")
+		return errorResponse(503, "host API not available")
 	}
 
 	params := articleParams{}
@@ -238,11 +239,11 @@ func (p *Plugin) handleArticle(ctx context.Context, args json.RawMessage) (json.
 		if err2 := json.Unmarshal(args, &idStr); err2 == nil {
 			params.ID, _ = strconv.ParseInt(idStr, 10, 64)
 		} else {
-			return nil, fmt.Errorf("kb:invalid_article_id: %w", err)
+			return errorResponse(400, "invalid article id: "+err.Error())
 		}
 	}
 	if params.ID < 1 {
-		return nil, fmt.Errorf("kb:invalid_article_id: ID must be positive")
+		return errorResponse(400, "invalid article id: ID must be positive")
 	}
 
 	orgID := p.host.OrgID(ctx)
@@ -251,11 +252,11 @@ func (p *Plugin) handleArticle(ctx context.Context, args json.RawMessage) (json.
 	query := "SELECT id, title, content, category, visibility, author, created_at, updated_at FROM gk_kb_articles WHERE id = ? AND org_id = ? AND status = 'published'"
 	rows, err := p.host.DBQuery(ctx, query, params.ID, orgID)
 	if err != nil {
-		return nil, fmt.Errorf("query article: %w", err)
+		return errorResponse(500, "query article: "+err.Error())
 	}
 	if len(rows) == 0 {
-		// Return 404 — don't leak existence of articles from other orgs.
-		return nil, fmt.Errorf("kb:article_not_found: article %d not found", params.ID)
+		// 404 — don't leak existence of articles from other orgs.
+		return errorResponse(404, "article not found")
 	}
 
 	row := rows[0]
@@ -273,18 +274,61 @@ func (p *Plugin) handleArticle(ctx context.Context, args json.RawMessage) (json.
 	return json.Marshal(article)
 }
 
-// handleImport validates import requests and refuses execution until the schema milestone is complete.
+// importParams holds the fields the host injects for a kb_import call.
+// The raw OTRS FAQ XML body arrives as _body (buildPluginArgs passes
+// non-JSON payloads through verbatim); _content_type lets us validate.
+type importParams struct {
+	Body        string `json:"_body,omitempty"`
+	ContentType string `json:"_content_type,omitempty"`
+}
+// handleImport accepts an OTRS/Znuny FAQ XML export (POST body, passed
+// through as _body by the host) and inserts articles into gk_kb_articles
+// scoped to the caller's org_id. Re-importing the same export upserts in
+// place via the (org_id, slug) unique index — idempotent.
+//
+// Returns a JSON import summary: {imported, skipped, errors, org_id}.
+// On a hard failure (no org, unparseable payload, schema error) it returns
+// an error-status JSON body so the host maps it to the right HTTP code.
 func (p *Plugin) handleImport(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
 	if p.host == nil {
-		return nil, fmt.Errorf("host API not available")
+		return errorResponse(503, "host API not available")
 	}
 
 	orgID := p.host.OrgID(ctx)
+	if orgID <= 0 {
+		return errorResponse(400, "no active organisation — cannot import without org_id")
+	}
+
+	params := importParams{}
+	if len(args) > 0 {
+		_ = json.Unmarshal(args, &params)
+	}
+	payload := []byte(params.Body)
+	if len(payload) == 0 {
+		return errorResponse(400, "import payload is empty — POST the OTRS FAQ XML as the request body")
+	}
+
 	p.host.Log(ctx, "info", "OTRS FAQ import started", map[string]any{
-		"org_id": orgID,
+		"org_id":       orgID,
+		"bytes":        len(payload),
+		"content_type": params.ContentType,
 	})
 
-	return nil, fmt.Errorf("kb:import_failed: import requires KB schema and importer implementation")
+	res, err := importOTRSFAQ(ctx, p.host, orgID, payload)
+	if err != nil {
+		p.host.Log(ctx, "error", "OTRS FAQ import failed", map[string]any{
+			"org_id": orgID,
+			"error":  err.Error(),
+		})
+		return errorResponse(500, err.Error())
+	}
+
+	p.host.Log(ctx, "info", "OTRS FAQ import complete", map[string]any{
+		"org_id":   orgID,
+		"imported": res.Imported,
+		"skipped":  res.Skipped,
+	})
+	return jsonMarshal(res)
 }
 
 // --- helpers ---
@@ -307,6 +351,10 @@ func toInt64(v any) int64 {
 	return 0
 }
 
+// toInt is the int-returning form of toInt64, used by the schema layer
+// (schema_version rows can arrive as int64, int, or float64).
+func toInt(v any) int { return int(toInt64(v)) }
+
 func toString(v any) string {
 	switch val := v.(type) {
 	case string:
@@ -325,3 +373,18 @@ func jsonEscape(s string) string {
 	b, _ := json.Marshal(s)
 	return string(b[1 : len(b)-1])
 }
+
+// errorResponse builds a JSON error body with an HTTP status code. The host's
+// dynamic router honours {"error": msg, "status": N} (N in 400–599) and maps
+// it to the matching HTTP status, so plugins can signal 400/404/500 etc.
+// without the host falling back to 200-OK-with-error-body.
+func errorResponse(code int, msg string) (json.RawMessage, error) {
+	return json.Marshal(map[string]any{
+		"error":  msg,
+		"status": code,
+	})
+}
+
+// jsonMarshal wraps json.Marshal so callers return (json.RawMessage, error)
+// without rewriting the two-line boilerplate at every handler return.
+func jsonMarshal(v any) (json.RawMessage, error) { return json.Marshal(v) }
