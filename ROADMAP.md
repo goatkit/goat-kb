@@ -3,7 +3,7 @@
 ## Milestone 1: Plugin Foundation & Structure
 - [ ] Create kb-plugin/ directory structure
 - [ ] Implement plugin.Plugin interface (GKRegister, Init, Call, Shutdown)
-- [ ] Configure WASM runtime for optimal performance/security
+- [ ] Configure gRPC runtime (go-plugin) — full Go stdlib, process isolation, hot reload, no WASM memory ceilings for large imports
 - [ ] Define plugin metadata (name, version, description, etc.)
 - [ ] Register core KB routes: /knowledge-base, /kb/search, /kb/article/:id
 - [ ] Register admin import route: POST /admin/kb/import
@@ -63,7 +63,7 @@
 - [ ] Implement caching layer for frequent queries (HostAPI.CacheSet/Get)
 - [ ] Minimize database calls per request
 - [ ] Efficient JSON serialization for API responses
-- [ ] WASM module size optimization
+- [ ] gRPC binary optimized (strip debug symbols, -ldflags="-s -w")
 - [ ] Zinc index includes org_id for efficient multi-tenant search
 - [ ] Database indexes on org_id, visibility, and query columns
 - [ ] Import processing optimized for batch operations with transactions
@@ -91,8 +91,8 @@
 - [ ] Verify zinc search respects org_id boundaries (no cross-org leakage)
 
 ## Milestone 9: Final Verification & Release
-- [ ] Build KB plugin WASM using existing toolchain
-- [ ] Place WASM in goatflow plugins/ directory and verify auto-discovery
+- [ ] Build KB plugin gRPC binary using existing toolchain (go build, not tinygo)
+- [ ] Deploy as directory in goatflow plugins/ (plugin.yaml + binary) and verify auto-discovery
 - [ ] Start GoatFlow and check plugin appears in manager
 - [ ] GET /customer/knowledge-base returns 200 with knowledge_base.pongo2 template
 - [ ] GET /customer/kb/search?q=test returns 200 with kb_search.pongo2 template
