@@ -1,0 +1,27 @@
+name: kb
+version: "0.1.0"
+runtime: grpc
+binary: kb
+description: Knowledge Base plugin with zinc search, OTRS FAQ import, and multi-tenant RBAC
+author: GoatKit Team
+license: Apache-2.0
+homepage: https://github.com/goatkit/goatflow-kb
+resources:
+  memory_mb: 256
+  call_timeout: 30s
+  init_timeout: 10s
+  shutdown_timeout: 5s
+  permissions:
+    - type: db
+      access: readwrite
+      scope: ["gk_kb_*"]
+    - type: cache
+      access: readwrite
+    - type: http
+      access: readwrite
+      scope: ["*"]
+    - type: config
+      access: read
+    - type: plugin_call
+      access: read
+      scope: ["*"]

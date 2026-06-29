@@ -1,16 +1,16 @@
 # GoatFlow Knowledge Base (KB) Module Roadmap
 
 ## Milestone 1: Plugin Foundation & Structure
-- [ ] Create kb-plugin/ directory structure
-- [ ] Implement plugin.Plugin interface (GKRegister, Init, Call, Shutdown)
-- [ ] Configure gRPC runtime (go-plugin) — full Go stdlib, process isolation, hot reload, no WASM memory ceilings for large imports
-- [ ] Define plugin metadata (name, version, description, etc.)
-- [ ] Register core KB routes: /knowledge-base, /kb/search, /kb/article/:id
-- [ ] Register admin import route: POST /admin/kb/import
-- [ ] Add admin menu item for KB management
-- [ ] Add dashboard widget for recent KB articles
-- [ ] Request necessary permissions (db:read/write, log)
-- [ ] Define error codes for KB operations
+- [x] Create cmd/kb-plugin and internal/kb directory structure
+- [x] Implement gRPC plugin interface (GKRegister, Init, Call, Shutdown)
+- [x] Configure gRPC runtime (go-plugin) — full Go stdlib, process isolation, hot reload, no WASM memory ceilings for large imports
+- [x] Define plugin metadata (name, version, description, etc.)
+- [x] Register core KB routes: /knowledge-base, /kb/search, /kb/article/:id
+- [x] Register admin import route: POST /admin/kb/import
+- [x] Add admin menu item for KB management
+- [x] Add dashboard widget for recent KB articles
+- [x] Request necessary HostAPI permissions (db/cache/http/config/plugin_call)
+- [x] Define error codes for KB operations
 
 ## Milestone 2: Database Schema & Multi-tenancy
 - [ ] Integrate with HostAPI for database access (no direct DB connections)
