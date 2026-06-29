@@ -53,3 +53,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 - Articles indexed on import (insert and update), carrying `org_id` in every document. The Zinc bool+filter+must query structure ensures the `org_id` filter is always applied at the engine level — a search never crosses tenant boundaries.
 - Search handler rewritten to use the real zinc client. Queries `title^3`, `summary^2`, `content`, `tags` with `org_id` and `status=published` filters. Returns results formatted for the `kb_search.pongo2` template with pagination fields (`page`, `per_page`, `total`, `results`).
 - 25 new tests covering client construction, index creation (mapping verification), document indexing/update/delete, search with org_id isolation, draft filtering, disabled-state fallbacks, import-with-indexing, and base64 encoding.
+
+### Milestone 4 — Security & Access Control
+
+- Added `reqCtx` helper (`extractReqCtx`) that reads `_user_role`, `_is_admin`, `_org_id`, `_user_id`, `_user_login` from the args injected by `buildPluginArgs`. Shared across all handlers for consistent role/identity extraction.
+- Visibility enforcement in `handleList`, `handleArticle`, `handleRecentWidget`: queries append `AND visibility = 'public'` for customers via `visibilityClause()`; agents/admins see all published articles in their org.
+- Zinc search query includes a `visibility` term filter when the caller is a customer (`maxVisibilityFilter()` returns `"public"`; agents/admins pass empty string = no restriction).
+- Information leak prevention: `handleArticle` returns 404 (not 403) when a caller requests a restricted-visibility article or a cross-org article — the response is identical to "article does not exist at all". Cross-org article IDs are never logged.
+- Admin import handler double-checks `_is_admin` / `_user_role` for defense-in-depth and logs unauthorised attempts with user identity.
+- Input sanitisation: `sanitiseText()` strips control characters from search queries and text inputs. Import content-type is validated (warning logged on mismatch). Import payload size is capped at 4 MB.
+- Audit logging: DB errors and invalid params are logged with `p.host.Log()` carrying user identity and context. Import lifecycle is fully logged (start, failure, complete).
+- HostAPI rate limiting enforced by the platform sandbox (60 HTTP requests/min, 600 DB queries/min by default) — no plugin-side limiters needed.

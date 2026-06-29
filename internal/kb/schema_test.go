@@ -467,6 +467,8 @@ func TestCallImportRoutesToImporter(t *testing.T) {
 	args, _ := json.Marshal(map[string]any{
 		"_body":         otrsFAQXML,
 		"_content_type": "application/xml",
+		"_is_admin":     true,
+		"_user_role":    "Admin",
 	})
 	result, err := p.Call("kb_import", args)
 	if err != nil {
@@ -488,7 +490,7 @@ func TestCallImportNoBodyReturns400(t *testing.T) {
 	p := New()
 	p.host = newFakeHost(dialectMySQL)
 	p.dialect = dialectMySQL
-	result, err := p.Call("kb_import", json.RawMessage(`{}`))
+	result, err := p.Call("kb_import", json.RawMessage(`{"_is_admin":true,"_user_role":"Admin","_body":""}`))
 	if err != nil {
 		t.Fatalf("Call returned go error: %v (expected JSON error body)", err)
 	}
@@ -499,6 +501,7 @@ func TestCallImportNoBodyReturns400(t *testing.T) {
 		t.Fatalf("status = %v, want 400", body["status"])
 	}
 }
+
 
 // --- error response convention ---
 

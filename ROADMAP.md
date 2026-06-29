@@ -31,15 +31,15 @@
 - [x] Test search relevance and performance
 
 ## Milestone 4: Security & Access Control
-- [ ] Implement Secure By Design following OWASP guidelines
-- [ ] Require authentication for all endpoints
-- [ ] Implement fine-grained authorization based on org_id and user roles
-- [ ] Support visibility levels: public, org-only, agent-specific
-- [ ] Prevent information leakage (don't reveal existence of unauthorized articles)
-- [ ] Validate and sanitize all inputs (prevent injection, XSS)
-- [ ] Implement CSRF protection where applicable
-- [ ] Log security-relevant events (access attempts, failures)
-- [ ] Respect HostAPI rate limiting protections
+- [x] Implement Secure By Design following OWASP guidelines
+- [x] Require authentication for all endpoints
+- [x] Implement fine-grained authorization based on org_id and user roles
+- [x] Support visibility levels: public, org-only, agent-specific
+- [x] Prevent information leakage (don't reveal existence of unauthorized articles)
+- [x] Validate and sanitize all inputs (prevent injection, XSS)
+- [x] Implement CSRF protection where applicable
+- [x] Log security-relevant events (access attempts, failures)
+- [x] Respect HostAPI rate limiting protections
 
 ## Milestone 5: Handler Implementation
 - [ ] kb_list: Query articles with pagination, org_id filter, permission-based visibility

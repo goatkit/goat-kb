@@ -315,7 +315,7 @@ func TestSearchReturnsHitsFilteredByOrgID(t *testing.T) {
 	c.indexDocument(context.Background(), zincDocument{ID: 2, OrgID: 2, Title: "Org2 Article", Status: "published"})
 
 	// Search as org 1 — should only get org 1's doc.
-	res, err := c.search(context.Background(), "article", 1, 1, 10)
+	res, err := c.search(context.Background(), "article", 1, 1, 10, "")
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
@@ -339,7 +339,7 @@ func TestSearchFiltersDraftArticles(t *testing.T) {
 	c.indexDocument(context.Background(), zincDocument{ID: 1, OrgID: 1, Title: "Published", Status: "published"})
 	c.indexDocument(context.Background(), zincDocument{ID: 2, OrgID: 1, Title: "Draft", Status: "draft"})
 
-	res, err := c.search(context.Background(), "test", 1, 1, 10)
+	res, err := c.search(context.Background(), "test", 1, 1, 10, "")
 	if err != nil {
 		t.Fatalf("search: %v", err)
 	}
@@ -350,7 +350,7 @@ func TestSearchFiltersDraftArticles(t *testing.T) {
 
 func TestSearchFailsWhenDisabled(t *testing.T) {
 	c := newZincClient(map[string]string{}, newFakeHTTPHost())
-	_, err := c.search(context.Background(), "test", 1, 1, 10)
+	_, err := c.search(context.Background(), "test", 1, 1, 10, "")
 	if err == nil || !strings.Contains(err.Error(), "not configured") {
 		t.Fatalf("expected not-configured error, got %v", err)
 	}
@@ -359,7 +359,7 @@ func TestSearchFailsWhenDisabled(t *testing.T) {
 func TestSearchSendsOrgIDFilterInQuery(t *testing.T) {
 	h := newFakeHTTPHost()
 	c := newZincClient(map[string]string{"zinc_url": "http://zinc:4080"}, h)
-	_, _ = c.search(context.Background(), "test", 42, 1, 10)
+	_, _ = c.search(context.Background(), "test", 42, 1, 10, "")
 	// The last request should be the search POST.
 	last := h.requests[len(h.requests)-1]
 	var q map[string]any

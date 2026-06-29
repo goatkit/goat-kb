@@ -193,7 +193,7 @@ type zincDocumentRaw struct {
 // The Zinc query uses a bool+filter+must structure: the must clause runs
 // the match query against title/summary/content/tags, and the filter clause
 // pins org_id so a search never crosses tenant boundaries.
-func (c *zincClient) search(ctx context.Context, query string, orgID int64, page, perPage int) (*zincSearchResult, error) {
+func (c *zincClient) search(ctx context.Context, query string, orgID int64, page, perPage int, visibilityFilter string) (*zincSearchResult, error) {
 	if !c.enabled {
 		return nil, fmt.Errorf("zinc not configured")
 	}
@@ -206,28 +206,23 @@ func (c *zincClient) search(ctx context.Context, query string, orgID int64, page
 	from := (page - 1) * perPage
 
 	// Build the Zinc/Elasticsearch-style query body.
+	filters := []map[string]any{
+		{"term": map[string]any{"org_id": orgID}},
+		{"term": map[string]any{"status": "published"}},
+	}
+	if visibilityFilter != "" {
+		filters = append(filters, map[string]any{"term": map[string]any{"visibility": visibilityFilter}})
+	}
 	q := map[string]any{
 		"query": map[string]any{
 			"bool": map[string]any{
-				"must": []map[string]any{
-					{
-						"multi_match": map[string]any{
-							"query":  query,
-							"fields": []string{"title^3", "summary^2", "content", "tags"},
-						},
-					},
-				},
-				"filter": []map[string]any{
-					{"term": map[string]any{"org_id": orgID}},
-					{"term": map[string]any{"status": "published"}},
-				},
+				"must":   []map[string]any{{"multi_match": map[string]any{"query": query, "fields": []string{"title^3", "summary^2", "content", "tags"}}}},
+				"filter": filters,
 			},
 		},
 		"from": from,
 		"size": perPage,
-		"sort": []map[string]any{
-			{"_score": "desc"},
-		},
+		"sort": []map[string]any{{"_score": "desc"}},
 	}
 	body, _ := json.Marshal(q)
 	url := fmt.Sprintf("%s/api/%s/_search", c.baseURL, zincIndexName)
