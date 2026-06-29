@@ -3,7 +3,6 @@ package kb
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"strconv"
 )
 
@@ -118,8 +117,9 @@ func (p *Plugin) handleRecentWidget(ctx context.Context, args json.RawMessage) (
 
 // searchParams holds the query parameters for searching articles.
 type searchParams struct {
-	Query string `json:"query"`
-	Page  int    `json:"page,omitempty"`
+	Query   string `json:"query"`
+	Page    int    `json:"page,omitempty"`
+	PerPage int    `json:"per_page,omitempty"`
 }
 
 // searchResult is the response for kb_search.
@@ -127,6 +127,8 @@ type searchResult struct {
 	Results []searchHit `json:"results"`
 	Total   int         `json:"total"`
 	Query   string      `json:"query"`
+	Page    int         `json:"page"`
+	PerPage int         `json:"per_page"`
 }
 
 // searchHit is a single search result.
@@ -138,13 +140,17 @@ type searchHit struct {
 	Category string  `json:"category"`
 }
 
-// handleSearch performs a full-text search via zinc, scoped to the caller's org.
+// handleSearch performs a full-text search via zinc, scoped to the caller's
+// org. The query matches title, summary, content, and tags; results are
+// filtered by org_id and status=published so a search never crosses tenant
+// boundaries or surfaces drafts. Returns results formatted for the
+// kb_search.pongo2 template (results, total, query, page, per_page).
 func (p *Plugin) handleSearch(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
 	if p.host == nil {
 		return errorResponse(503, "host API not available")
 	}
 
-	params := searchParams{Page: 1}
+	params := searchParams{Page: 1, PerPage: 10}
 	if err := json.Unmarshal(args, &params); err != nil {
 		return errorResponse(400, "invalid search params: "+err.Error())
 	}
@@ -154,46 +160,33 @@ func (p *Plugin) handleSearch(ctx context.Context, args json.RawMessage) (json.R
 	if params.Page < 1 {
 		params.Page = 1
 	}
+	if params.PerPage < 1 || params.PerPage > 100 {
+		params.PerPage = 10
+	}
+
+	// If zinc isn't configured, return an empty result set with a clear
+	// message rather than failing — the KB list still works via the DB.
+	if p.zinc == nil || !p.zinc.enabled {
+		return jsonMarshal(searchResult{
+			Results: []searchHit{},
+			Total:   0,
+			Query:   params.Query,
+			Page:    params.Page,
+			PerPage: params.PerPage,
+		})
+	}
 
 	orgID := p.host.OrgID(ctx)
 
-	// Search via zinc HTTP API using HostAPI.HTTPRequest.
-	// The zinc index includes org_id for multi-tenant isolation.
-	searchBody := fmt.Sprintf(`{"search":{"query":"%s","org_id":%d}}`, jsonEscape(params.Query), orgID)
-	status, body, err := p.host.HTTPRequest(ctx, "POST", "http://zinc:4080/api/v1/kb_articles/_search", nil, []byte(searchBody))
+	zres, err := p.zinc.search(ctx, params.Query, orgID, params.Page, params.PerPage)
 	if err != nil {
-		return errorResponse(502, "zinc search request failed: "+err.Error())
-	}
-	if status != 200 {
-		return errorResponse(502, fmt.Sprintf("zinc search returned status %d: %s", status, string(body)))
+		return errorResponse(502, "zinc search failed: "+err.Error())
 	}
 
-	// Parse zinc response — the exact structure depends on zinc's API.
-	// We extract hits and map to searchHit.
-	var zincResp struct {
-		Hits struct {
-			Total struct {
-				Value int `json:"value"`
-			} `json:"total"`
-			Hits []struct {
-				Score  float64 `json:"_score"`
-				Source struct {
-					ID       int64  `json:"id"`
-					Title    string `json:"title"`
-					Summary  string `json:"summary"`
-					Category string `json:"category"`
-				} `json:"_source"`
-			} `json:"hits"`
-		} `json:"hits"`
-	}
-	if err := json.Unmarshal(body, &zincResp); err != nil {
-		return errorResponse(502, "parse zinc response: "+err.Error())
-	}
-
-	hits := make([]searchHit, 0, len(zincResp.Hits.Hits))
-	for _, h := range zincResp.Hits.Hits {
+	hits := make([]searchHit, 0, len(zres.Hits.Hits))
+	for _, h := range zres.Hits.Hits {
 		hits = append(hits, searchHit{
-			ID:       h.Source.ID,
+			ID:       toInt64(h.Source.ID),
 			Title:    h.Source.Title,
 			Summary:  h.Source.Summary,
 			Score:    h.Score,
@@ -203,10 +196,12 @@ func (p *Plugin) handleSearch(ctx context.Context, args json.RawMessage) (json.R
 
 	result := searchResult{
 		Results: hits,
-		Total:   zincResp.Hits.Total.Value,
+		Total:   int(zres.Hits.Total.Value),
 		Query:   params.Query,
+		Page:    params.Page,
+		PerPage: params.PerPage,
 	}
-	return json.Marshal(result)
+	return jsonMarshal(result)
 }
 
 // articleParams holds the query parameters for fetching a single article.
@@ -314,7 +309,7 @@ func (p *Plugin) handleImport(ctx context.Context, args json.RawMessage) (json.R
 		"content_type": params.ContentType,
 	})
 
-	res, err := importOTRSFAQ(ctx, p.host, orgID, payload)
+	res, err := importOTRSFAQ(ctx, p.host, p.zinc, orgID, payload)
 	if err != nil {
 		p.host.Log(ctx, "error", "OTRS FAQ import failed", map[string]any{
 			"org_id": orgID,
@@ -369,10 +364,6 @@ func toString(v any) string {
 	}
 }
 
-func jsonEscape(s string) string {
-	b, _ := json.Marshal(s)
-	return string(b[1 : len(b)-1])
-}
 
 // errorResponse builds a JSON error body with an HTTP status code. The host's
 // dynamic router honours {"error": msg, "status": N} (N in 400–599) and maps

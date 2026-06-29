@@ -44,3 +44,12 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and
 
 - `buildPluginArgs` now passes non-JSON request bodies (XML, CSV, plain text) through to plugins as `_body` / `_content_type`, capped at 4 MiB. Previously such payloads were silently dropped because only JSON bodies were merged into args.
 - The dynamic router honours plugin error responses of the form `{"error": msg, "status": N}` (N in 400–599) and maps them to the matching HTTP status, so plugins can signal not-found / bad-request / server errors instead of every error surfacing as 200-OK-with-body.
+
+### Milestone 3 — Search Functionality (Zinc Integration)
+
+- Zinc REST API client (`internal/kb/zinc.go`) that communicates with Zinc via `HostAPI.HTTPRequest` (basic auth). Created locally because the plugin can't import `internal/platform/zinc` across the platform boundary.
+- Client is auto-disabled when `zinc_url` is unset in the plugin config (`GOATFLOW_PLUGIN_KB_ZINC_URL` env var). When disabled, search returns an empty result set instead of failing — the KB list still works via the DB.
+- Index creation on `InitWithHost` with a field mapping marking `title`, `summary`, `content`, `tags` as analysed text, `org_id` as long, and `category`/`visibility`/`status` as keywords. Auto-create so Zinc's default `_all` field doesn't cause unexpected query behaviour.
+- Articles indexed on import (insert and update), carrying `org_id` in every document. The Zinc bool+filter+must query structure ensures the `org_id` filter is always applied at the engine level — a search never crosses tenant boundaries.
+- Search handler rewritten to use the real zinc client. Queries `title^3`, `summary^2`, `content`, `tags` with `org_id` and `status=published` filters. Returns results formatted for the `kb_search.pongo2` template with pagination fields (`page`, `per_page`, `total`, `results`).
+- 25 new tests covering client construction, index creation (mapping verification), document indexing/update/delete, search with org_id isolation, draft filtering, disabled-state fallbacks, import-with-indexing, and base64 encoding.

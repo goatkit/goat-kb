@@ -16,6 +16,7 @@ import (
 type Plugin struct {
 	host    plugin.HostAPI
 	dialect dialect
+	zinc    *zincClient
 }
 
 // New returns a new KB plugin instance.
@@ -118,18 +119,25 @@ func (p *Plugin) GKRegister() (*plugin.GKRegistration, error) {
 		},
 	}, nil
 }
-
 // InitWithHost receives the HostAPI from the platform and brings the KB
 // schema up to the current version before the plugin serves requests.
 func (p *Plugin) InitWithHost(config map[string]string, host plugin.HostAPI) error {
 	p.host = host
 	p.dialect = detectDialect(context.Background(), host)
+	p.zinc = newZincClient(config, host)
 	host.Log(context.Background(), "info", "KB plugin initialized", map[string]any{
-		"version": "0.1.0",
-		"dialect": string(p.dialect),
+		"version":     "0.1.0",
+		"dialect":     string(p.dialect),
+		"zinc_enable": p.zinc.enabled,
 	})
 	if err := migrateSchema(context.Background(), host, p.dialect); err != nil {
 		return fmt.Errorf("KB plugin init: %w", err)
+	}
+	if p.zinc.enabled {
+		if err := p.zinc.ensureIndex(context.Background()); err != nil {
+			host.Log(context.Background(), "warn", "KB zinc index creation failed; search disabled", map[string]any{"error": err.Error()})
+			p.zinc.enabled = false
+		}
 	}
 	return nil
 }

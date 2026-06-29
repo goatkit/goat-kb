@@ -22,13 +22,13 @@
 - [x] Handle database errors gracefully with appropriate HTTP status codes
 
 ## Milestone 3: Search Functionality (Zinc Integration)
-- [ ] Integrate zinc for full-text search indexing of KB articles
-- [ ] Index title, content, tags fields for search
-- [ ] Include org_id in zinc documents for multi-tenant isolation
-- [ ] Implement search handler that accepts query parameter
-- [ ] Return search results formatted for kb_search.pongo2 template
-- [ ] Optimize for sub-second response times
-- [ ] Test search relevance and performance
+- [x] Integrate zinc for full-text search indexing of KB articles
+- [x] Index title, content, tags fields for search
+- [x] Include org_id in zinc documents for multi-tenant isolation
+- [x] Implement search handler that accepts query parameter
+- [x] Return search results formatted for kb_search.pongo2 template
+- [x] Optimize for sub-second response times
+- [x] Test search relevance and performance
 
 ## Milestone 4: Security & Access Control
 - [ ] Implement Secure By Design following OWASP guidelines

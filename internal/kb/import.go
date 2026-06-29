@@ -79,7 +79,12 @@ type importResult struct {
 //
 // sourceName is "otrs_faq" for the standard export and is stored on each row
 // so downstream tooling can tell imported articles from native ones.
-func importOTRSFAQ(ctx context.Context, host hostQuerier, orgID int64, payload []byte) (importResult, error) {
+//
+// If zc is non-nil and enabled, each inserted/updated article is also pushed
+// to the Zinc search index carrying org_id for multi-tenant isolation.
+// Indexing failures are logged in res.Errors but don't fail the import — the
+// DB row is the source of truth and can be re-indexed later.
+func importOTRSFAQ(ctx context.Context, host hostQuerier, zc *zincClient, orgID int64, payload []byte) (importResult, error) {
 	res := importResult{OrgID: orgID}
 
 	if orgID <= 0 {
@@ -110,6 +115,15 @@ func importOTRSFAQ(ctx context.Context, host hostQuerier, orgID int64, payload [
 				res.Skipped++
 				continue
 			}
+			if zc != nil && zc.enabled {
+				if err := zc.indexDocument(ctx, zincDocument{
+					ID: existing, OrgID: orgID, Title: art.Title, Summary: art.Summary,
+					Content: art.Content, Category: art.Category, Tags: art.Tags,
+					Visibility: art.Visibility, Status: art.Status,
+				}); err != nil {
+					res.Errors = append(res.Errors, fmt.Sprintf("index %q: %v", art.SourceID, err))
+				}
+			}
 			res.Imported++
 			continue
 		}
@@ -117,6 +131,19 @@ func importOTRSFAQ(ctx context.Context, host hostQuerier, orgID int64, payload [
 			res.Errors = append(res.Errors, fmt.Sprintf("insert %q: %v", art.SourceID, err))
 			res.Skipped++
 			continue
+		}
+		// Look up the generated id for indexing. The (org_id, slug) unique
+		// key lets us recover it since DBExec returns rows-affected only.
+		if zc != nil && zc.enabled {
+			if id, err := findArticleBySlug(ctx, host, orgID, art.Slug); err == nil && id != 0 {
+				if err := zc.indexDocument(ctx, zincDocument{
+					ID: id, OrgID: orgID, Title: art.Title, Summary: art.Summary,
+					Content: art.Content, Category: art.Category, Tags: art.Tags,
+					Visibility: art.Visibility, Status: art.Status,
+				}); err != nil {
+					res.Errors = append(res.Errors, fmt.Sprintf("index %q: %v", art.SourceID, err))
+				}
+			}
 		}
 		res.Imported++
 	}
@@ -205,6 +232,22 @@ func findArticleBySource(ctx context.Context, host hostQuerier, orgID int64, sou
 	rows, err := host.DBQuery(ctx,
 		"SELECT id FROM gk_kb_articles WHERE org_id = ? AND source = ? AND source_id = ? LIMIT 1",
 		orgID, source, sourceID)
+	if err != nil {
+		return 0, err
+	}
+	if len(rows) == 0 {
+		return 0, nil
+	}
+	return toInt64(rows[0]["id"]), nil
+}
+
+// findArticleBySlug returns the row id of an article with the given
+// (org_id, slug), or 0 if none. Used to recover the auto-generated id after
+// INSERT since DBExec over gRPC returns rows-affected, not last-insert-id.
+func findArticleBySlug(ctx context.Context, host hostQuerier, orgID int64, slug string) (int64, error) {
+	rows, err := host.DBQuery(ctx,
+		"SELECT id FROM gk_kb_articles WHERE org_id = ? AND slug = ? LIMIT 1",
+		orgID, slug)
 	if err != nil {
 		return 0, err
 	}

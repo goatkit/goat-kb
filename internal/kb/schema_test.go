@@ -146,6 +146,17 @@ func (h *fakeHost) queryRows(table, query string, args []any) []map[string]any {
 		}
 		return out
 	}
+	if strings.Contains(q, "SLUG = ?") {
+		orgID, slug := toInt64(args[0]), toString(args[1])
+		var out []map[string]any
+		for _, row := range h.tables[table] {
+			if toInt64(row["org_id"]) == orgID && toString(row["slug"]) == slug {
+				out = append(out, row)
+				break
+			}
+		}
+		return out
+	}
 	return h.filterByOrg(table, args)
 }
 
@@ -358,7 +369,7 @@ const otrsFAQXML = `<?xml version="1.0" encoding="UTF-8"?>
 
 func TestImportOTRSFAQInsertsArticles(t *testing.T) {
 	h := newFakeHost(dialectMySQL)
-	res, err := importOTRSFAQ(context.Background(), h, 1, []byte(otrsFAQXML))
+	res, err := importOTRSFAQ(context.Background(), h, nil, 1, []byte(otrsFAQXML))
 	if err != nil {
 		t.Fatalf("import: %v", err)
 	}
@@ -382,10 +393,10 @@ func TestImportOTRSFAQInsertsArticles(t *testing.T) {
 
 func TestImportOTRSFAQIsIdempotent(t *testing.T) {
 	h := newFakeHost(dialectMySQL)
-	if _, err := importOTRSFAQ(context.Background(), h, 1, []byte(otrsFAQXML)); err != nil {
+	if _, err := importOTRSFAQ(context.Background(), h, nil, 1, []byte(otrsFAQXML)); err != nil {
 		t.Fatalf("first import: %v", err)
 	}
-	if _, err := importOTRSFAQ(context.Background(), h, 1, []byte(otrsFAQXML)); err != nil {
+	if _, err := importOTRSFAQ(context.Background(), h, nil, 1, []byte(otrsFAQXML)); err != nil {
 		t.Fatalf("second import: %v", err)
 	}
 	rows := h.tables["gk_kb_articles"]
@@ -397,11 +408,11 @@ func TestImportOTRSFAQIsIdempotent(t *testing.T) {
 func TestImportOTRSFAQPreservesOrgIDIsolation(t *testing.T) {
 	h := newFakeHost(dialectMySQL)
 	// Import into org 1.
-	if _, err := importOTRSFAQ(context.Background(), h, 1, []byte(otrsFAQXML)); err != nil {
+	if _, err := importOTRSFAQ(context.Background(), h, nil, 1, []byte(otrsFAQXML)); err != nil {
 		t.Fatalf("import org 1: %v", err)
 	}
 	// Import into org 2 — should not collide with org 1's slugs.
-	if _, err := importOTRSFAQ(context.Background(), h, 2, []byte(otrsFAQXML)); err != nil {
+	if _, err := importOTRSFAQ(context.Background(), h, nil, 2, []byte(otrsFAQXML)); err != nil {
 		t.Fatalf("import org 2: %v", err)
 	}
 	rows := h.tables["gk_kb_articles"]
@@ -425,7 +436,7 @@ func TestImportOTRSFAQPreservesOrgIDIsolation(t *testing.T) {
 
 func TestImportOTRSFAQRejectsZeroOrg(t *testing.T) {
 	h := newFakeHost(dialectMySQL)
-	_, err := importOTRSFAQ(context.Background(), h, 0, []byte(otrsFAQXML))
+	_, err := importOTRSFAQ(context.Background(), h, nil, 0, []byte(otrsFAQXML))
 	if err == nil || !strings.Contains(err.Error(), "no active org") {
 		t.Fatalf("expected no-active-org error, got %v", err)
 	}
@@ -433,7 +444,7 @@ func TestImportOTRSFAQRejectsZeroOrg(t *testing.T) {
 
 func TestImportOTRSFAQRejectsEmptyPayload(t *testing.T) {
 	h := newFakeHost(dialectMySQL)
-	_, err := importOTRSFAQ(context.Background(), h, 1, nil)
+	_, err := importOTRSFAQ(context.Background(), h, nil, 1, nil)
 	if err == nil {
 		t.Fatal("expected error for empty payload")
 	}
@@ -441,7 +452,7 @@ func TestImportOTRSFAQRejectsEmptyPayload(t *testing.T) {
 
 func TestImportOTRSFAQRejectsUnparseableXML(t *testing.T) {
 	h := newFakeHost(dialectMySQL)
-	_, err := importOTRSFAQ(context.Background(), h, 1, []byte("not xml at all <<<<"))
+	_, err := importOTRSFAQ(context.Background(), h, nil, 1, []byte("not xml at all <<<<"))
 	if err == nil || !strings.Contains(err.Error(), "no FAQItem") {
 		t.Fatalf("expected parse error, got %v", err)
 	}
