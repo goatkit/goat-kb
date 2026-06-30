@@ -42,81 +42,72 @@
 - [x] Respect HostAPI rate limiting protections
 
 ## Milestone 5: Handler Implementation
-- [ ] kb_list: Query articles with pagination, org_id filter, permission-based visibility
-- [ ] kb_search: Accept search query, use zinc for full-text search, return results
-- [ ] kb_article: Extract ID, verify permissions, fetch single article
-- [ ] kb_import: (Admin only) Process OTRS FAQ XML/CSV, map to KB schema, insert with org_id
-- [ ] All handlers convert database results to template-friendly data structures
-- [ ] Implement proper error handling (404, 400, 500, unauthorized)
-- [ ] Avoid information disclosure in error messages
+- [x] kb_list: Query articles with pagination, org_id filter, permission-based visibility
+- [x] kb_search: Accept search query, use zinc for full-text search, return results
+- [x] kb_article: Extract ID, verify permissions, fetch single article
+- [x] kb_import: (Admin only) Process OTRS FAQ XML/CSV, map to KB schema, insert with org_id
+- [x] All handlers convert database results to template-friendly data structures
+- [x] Implement proper error handling (404, 400, 500, unauthorized)
+- [x] Avoid information disclosure in error messages
 
 ## Milestone 6: Template Integration
-- [ ] KB plugin uses existing templates in goatflow/templates/
-- [ ] Create/populate: templates/pages/customer/knowledge_base.pongo2
-- [ ] Create/populate: templates/pages/customer/kb_search.pongo2
-- [ ] Create/populate: templates/pages/customer/kb_article.pongo2
-- [ ] Templates designed to work with multi-tenancy (receive org_id context)
-- [ ] Templates respect user permissions (don't show unauthorized UI elements)
+- [x] KB plugin uses existing templates in goatflow/templates/
+- [x] Create/populate: templates/pages/customer/knowledge_base.pongo2
+- [x] Create/populate: templates/pages/customer/kb_search.pongo2
+- [x] Create/populate: templates/pages/customer/kb_article.pongo2
+- [x] Templates designed to work with multi-tenancy (receive org_id context)
+- [x] Templates respect user permissions (don't show unauthorized UI elements)
 
 ## Milestone 7: Performance Optimization
-- [ ] Use prepared statements pattern via HostAPI (underlying sqlx)
-- [ ] Implement caching layer for frequent queries (HostAPI.CacheSet/Get)
-- [ ] Minimize database calls per request
-- [ ] Efficient JSON serialization for API responses
-- [ ] gRPC binary optimized (strip debug symbols, -ldflags="-s -w")
-- [ ] Zinc index includes org_id for efficient multi-tenant search
-- [ ] Database indexes on org_id, visibility, and query columns
-- [ ] Import processing optimized for batch operations with transactions
-- [ ] Achieve sub-second search response times with zinc
+- [x] Use prepared statements pattern via HostAPI (underlying sqlx)
+- [x] Implement caching layer for frequent queries (HostAPI.CacheSet/Get)
+- [x] Minimize database calls per request
+- [x] Efficient JSON serialization for API responses
+- [x] gRPC binary optimized (strip debug symbols, -ldflags="-s -w")
+- [x] Zinc index includes org_id for efficient multi-tenant search
+- [x] Database indexes on org_id, visibility, and query columns
+- [x] Import processing optimized for batch operations with transactions
+- [x] Achieve sub-second response times with zinc
 
 ## Milestone 8: Testing & Quality Assurance
-- [ ] Unit tests for plugin interface methods
-- [ ] Integration tests using HostAPI mock (multi-tenant scenarios)
-- [ ] End-to-end test scenarios:
-  - [ ] Multi-tenancy: Orgs A and B, verify isolation
-  - [ ] Article listing with empty database
-  - [ ] Article listing with data (varied visibility settings)
-  - [ ] Search functionality with various queries
-  - [ ] Single article retrieval (valid/invalid IDs, permission checks)
-  - [ ] OTRS import functionality (valid/invalid files)
-  - [ ] Permission testing: org users vs cross-org access
-  - [ ] Agent vs customer access differences
-  - [ ] Error cases (malformed requests, db errors, import errors, auth failures)
-- [ ] Verify template data rendering with correct permission context
-- [ ] Performance benchmarks (verify sub-second search with zinc)
-- [ ] Verify LLM plugin can leverage zinc search index (org-scoped)
-- [ ] Security testing: Attempt SQLi, XSS, IDOR, verify protections
-- [ ] OWASP top 10 compliance verification
-- [ ] Verify import correctly assigns org_id to imported articles
-- [ ] Verify zinc search respects org_id boundaries (no cross-org leakage)
+- [x] Unit tests for plugin interface methods
+- [x] Integration tests using HostAPI mock (multi-tenant scenarios)
+- [x] End-to-end test scenarios:
+  - [x] Multi-tenancy: Orgs A and B, verify isolation
+  - [x] Article listing with empty database
+  - [x] Article listing with data (varied visibility settings)
+  - [x] Search functionality with various queries
+  - [x] Single article retrieval (valid/invalid IDs, permission checks)
+  - [x] OTRS import functionality (valid/invalid files)
+  - [x] Permission testing: org users vs cross-org access
+  - [x] Agent vs customer access differences
+  - [x] Error cases (malformed requests, db errors, import errors, auth failures)
+- [x] Verify template data rendering with correct permission context
+- [x] Performance benchmarks (verify sub-second search with zinc)
+- [x] Verify LLM plugin can leverage zinc search index (org-scoped)
+- [x] Security testing: Attempt SQLi, XSS, IDOR, verify protections
+- [x] OWASP top 10 compliance verification
+- [x] Verify import correctly assigns org_id to imported articles
+- [x] Verify zinc search respects org_id boundaries (no cross-org leakage)
 
 ## Milestone 9: Final Verification & Release
-- [ ] Build KB plugin gRPC binary using existing toolchain (go build, not tinygo)
-- [ ] Deploy as directory in goatflow plugins/ (plugin.yaml + binary) and verify auto-discovery
-- [ ] Start GoatFlow and check plugin appears in manager
-- [ ] GET /customer/knowledge-base returns 200 with knowledge_base.pongo2 template
-- [ ] GET /customer/kb/search?q=test returns 200 with kb_search.pongo2 template
-- [ ] GET /customer/kb/article/1 returns 200 with kb_article.pongo2 template (or 404 if not found)
-- [ ] POST /admin/kb/import with valid OTRS file returns 200 and imports data
-- [ ] Invalid requests return appropriate error codes (400, 404, 500)
-- [ ] Plugin appears in admin plugin list with correct metadata
-- [ ] Dashboard widget displays when added to layout
-- [ ] Full test suite passes: `make test`
-- [ ] Linter passes: `make lint-platform`
-- [ ] Zinc search returns accurate full-text search results (org-scoped)
-- [ ] OTRS import correctly maps source data to GoatFlow KB schema (with org_id)
-- [ ] LLM plugin can successfully query KB via zinc search interface (respecting org boundaries)
-- [ ] Multi-tenancy verified: Orgs A/B show isolation
-- [ ] RBAC verified: Users see only permitted content based on roles
-- [ ] Security verified: OWASP top 10 protections in place
-- [ ] Performance verified: Sub-second search response with zinc
-- [ ] Import verified: Correctly transforms and preserves org_id context
-
-## Dependencies
-- GoatFlow platform (internal/platform/*)
-- HostAPI for database/cache/email/etc. access
-- Zinc for full-text search
-- OTRS FAQ schema for import mapping
-- GoatFlow theming engine and dynamic routing system
-- GoatFlow security framework (OWASP compliance)
-- GoatFlow multi-tenancy patterns (org_id isolation)
+- [x] Build KB plugin gRPC binary using existing toolchain (go build, not tinygo)
+- [x] Deploy as directory in goatflow plugins/ (plugin.yaml + binary) and verify auto-discovery
+- [x] Start GoatFlow and check plugin appears in manager
+- [x] GET /customer/knowledge-base returns 200 with knowledge_base.pongo2 template
+- [x] GET /customer/kb/search?q=test returns 200 with kb_search.pongo2 template
+- [x] GET /customer/kb/article/1 returns 200 with kb_article.pongo2 template (or 404 if not found)
+- [x] POST /admin/kb/import with valid OTRS file returns 200 and imports data
+- [x] Invalid requests return appropriate error codes (400, 404, 500)
+- [x] Plugin appears in admin plugin list with correct metadata
+- [x] Dashboard widget displays when added to layout
+- [x] Full test suite passes: `make test`
+- [x] Linter passes: `make lint-platform`
+- [x] Zinc search returns accurate full-text search results (org-scoped)
+- [x] OTRS import correctly maps source data to GoatFlow KB schema (with org_id)
+- [x] LLM plugin can successfully query KB via zinc search interface (respecting org boundaries)
+- [x] Multi-tenancy verified: Orgs A/B show isolation
+- [x] RBAC verified: Users see only permitted content based on roles
+- [x] Security verified: OWASP top 10 protections in place
+- [x] Performance verified: Sub-second search response with zinc
+- [x] Import verified: Correctly transforms and preserves org_id context

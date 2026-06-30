@@ -70,6 +70,34 @@ func (p *Plugin) GKRegister() (*plugin.GKRegistration, error) {
 				Middleware:  []string{"admin"},
 				Description: "Import OTRS FAQ articles (admin only)",
 			},
+			{
+				Method:      "GET",
+				Path:        "/admin/kb",
+				Handler:     "handleAdminList",
+				Middleware:  []string{"admin"},
+				Description: "List all KB articles for admin management",
+			},
+			{
+				Method:      "GET",
+				Path:        "/admin/kb/article/:id",
+				Handler:     "handleAdminArticle",
+				Middleware:  []string{"admin"},
+				Description: "View/edit KB article for admin management",
+			},
+			{
+				Method:      "POST",
+				Path:        "/admin/kb/article",
+				Handler:     "handleAdminArticleUpdate",
+				Middleware:  []string{"admin"},
+				Description: "Create/update KB article for admin management",
+			},
+			{
+				Method:      "DELETE",
+				Path:        "/admin/kb/article/:id",
+				Handler:     "handleAdminArticleDelete",
+				Middleware:  []string{"admin"},
+				Description: "Delete KB article for admin management",
+			},
 		},
 
 		MenuItems: []plugin.MenuItemSpec{
@@ -161,6 +189,14 @@ func (p *Plugin) Call(fn string, args json.RawMessage) (json.RawMessage, error) 
 		return p.handleImport(ctx, args)
 	case "kb_widget_recent":
 		return p.handleRecentWidget(ctx, args)
+	case "handleAdminList":
+		return p.handleAdminList(ctx, args)
+	case "handleAdminArticle":
+		return p.handleAdminArticle(ctx, args)
+	case "handleAdminArticleUpdate":
+		return p.handleAdminArticleUpdate(ctx, args)
+	case "handleAdminArticleDelete":
+		return p.handleAdminArticleDelete(ctx, args)
 	default:
 		return nil, fmt.Errorf("unknown function: %s", fn)
 	}

@@ -1,6 +1,6 @@
-.PHONY: build clean test package deploy help
+.PHONY: build clean test package deploy help test-integration
 
-GOATFLOW_DIR := $(shell realpath ../goatflow 2>/dev/null || echo /home/nigel/git/goatkit/goatflow)
+GOATFLOW_DIR := $(shell realpath ../goatflow 2>/dev/null || echo ../goatflow)
 -include $(GOATFLOW_DIR)/.env
 export
 
@@ -71,3 +71,16 @@ help:
 	@echo "  make package                 Build and ZIP plugin.yaml + binary"
 	@echo "  make deploy                  Package and upload via GoatFlow API"
 	@echo "  make deploy GOATFLOW_URL=..  Deploy to a specific GoatFlow instance"
+
+test-integration: package
+	@echo "🚀  Starting integration test..."
+	docker run --rm \
+		--network host \
+		-u "$$(id -u):$$(id -g)" \
+		-v "$(CURDIR)":/src \
+		-v "$(GOATFLOW_DIR)":/goatflow \
+		--env-file "$(GOATFLOW_DIR)/.env" \
+		-w /src \
+		-e GOATFLOW_URL="$(GOATFLOW_URL)" \
+		-e GOCACHE=/tmp/gocache \
+		$(GO_IMAGE) sh -c "go test -tags=integration -v ./internal/kb -run TestKBPluginIntegration"
