@@ -109,6 +109,14 @@ func (p *Plugin) GKRegister() (*plugin.GKRegistration, error) {
 				Location: "admin",
 				Order:    50,
 			},
+			{
+				ID:       "kb-customer",
+				Label:    "Knowledge Base",
+				Icon:     "book-open",
+				Path:     "/customer/kb",
+				Location: "customer",
+				Order:    30,
+			},
 		},
 
 		Widgets: []plugin.WidgetSpec{

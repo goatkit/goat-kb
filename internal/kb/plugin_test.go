@@ -44,8 +44,21 @@ func TestGKRegisterMilestoneOneContract(t *testing.T) {
 		t.Fatalf("missing route registrations: %+v", wantRoutes)
 	}
 
-	if len(reg.MenuItems) != 1 || reg.MenuItems[0].Location != "admin" {
+	// Verify admin menu item exists
+	var hasAdminMenu, hasCustomerMenu bool
+	for _, mi := range reg.MenuItems {
+		if mi.ID == "kb-admin" && mi.Location == "admin" {
+			hasAdminMenu = true
+		}
+		if mi.ID == "kb-customer" && mi.Location == "customer" {
+			hasCustomerMenu = true
+		}
+	}
+	if !hasAdminMenu {
 		t.Fatalf("admin menu item not registered: %+v", reg.MenuItems)
+	}
+	if !hasCustomerMenu {
+		t.Fatalf("customer menu item not registered: %+v", reg.MenuItems)
 	}
 	if len(reg.Widgets) != 1 || reg.Widgets[0].Handler != "kb_widget_recent" {
 		t.Fatalf("recent article widget not registered: %+v", reg.Widgets)
