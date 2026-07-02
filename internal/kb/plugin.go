@@ -27,12 +27,12 @@ func New() *Plugin {
 // GKRegister returns the plugin self-description.
 func (p *Plugin) GKRegister() (*plugin.GKRegistration, error) {
 	return &plugin.GKRegistration{
-		Name:        "kb",
+		Name:        "goat-kb",
 		Version:     "0.1.0",
 		Description: "Knowledge Base plugin with zinc search, OTRS import, and multi-tenant RBAC",
 		Author:      "GoatKit Team",
 		License:     "Apache-2.0",
-		Homepage:    "https://github.com/goatkit/goatflow-kb",
+		Homepage:    "https://github.com/goatkit/goat-kb",
 
 		MinHostVersion: "0.9.0",
 
@@ -70,6 +70,41 @@ func (p *Plugin) GKRegister() (*plugin.GKRegistration, error) {
 				Middleware:  []string{"admin"},
 				Description: "Import OTRS FAQ articles (admin only)",
 			},
+		{
+			Method:      "GET",
+			Path:        "/customer/kb",
+			Handler:     "handleCustomerList",
+			Middleware:  []string{"auth"},
+			Description: "List KB articles for customers (public visibility only)",
+		},
+		{
+			Method:      "GET",
+			Path:        "/customer/kb/article/:id",
+			Handler:     "handleCustomerArticle",
+			Middleware:  []string{"auth"},
+			Description: "View a single KB article (customer-facing HTML)",
+		},
+		{
+			Method:      "GET",
+			Path:        "/customer/kb/search",
+			Handler:     "handleCustomerSearch",
+			Middleware:  []string{"auth"},
+			Description: "Search KB articles for customers (public visibility only)",
+		},
+		{
+			Method:      "GET",
+			Path:        "/agent/kb",
+			Handler:     "handleAgentList",
+			Middleware:  []string{"auth"},
+			Description: "List KB articles for agents (public/org/agent visibility)",
+		},
+		{
+			Method:      "GET",
+			Path:        "/agent/kb/article/:id",
+			Handler:     "handleAgentArticle",
+			Middleware:  []string{"auth"},
+			Description: "View a single KB article for agents",
+		},
 			{
 				Method:      "GET",
 				Path:        "/admin/kb",
@@ -98,16 +133,38 @@ func (p *Plugin) GKRegister() (*plugin.GKRegistration, error) {
 				Middleware:  []string{"admin"},
 				Description: "Delete KB article for admin management",
 			},
+			{
+				Method:      "GET",
+				Path:        "/admin/kb/categories",
+				Handler:     "handleAdminCategories",
+				Middleware:  []string{"admin"},
+				Description: "Manage KB category taxonomy (admin only)",
+			},
+			{
+				Method:      "POST",
+				Path:        "/admin/kb/categories",
+				Handler:     "handleAdminCategories",
+				Middleware:  []string{"admin"},
+				Description: "Add/rename/delete KB categories (admin only)",
+			},
 		},
 
 		MenuItems: []plugin.MenuItemSpec{
 			{
 				ID:       "kb-admin",
 				Label:    "Knowledge Base",
-				Icon:     "book",
+				Icon:     "fa-book",
 				Path:     "/admin/kb",
 				Location: "admin",
 				Order:    50,
+			},
+			{
+				ID:       "kb-agent",
+				Label:    "Knowledge Base",
+				Icon:     "fa-book-open",
+				Path:     "/agent/kb",
+				Location: "agent",
+				Order:    30,
 			},
 			{
 				ID:       "kb-customer",
@@ -118,14 +175,13 @@ func (p *Plugin) GKRegister() (*plugin.GKRegistration, error) {
 				Order:    30,
 			},
 		},
-
 		Widgets: []plugin.WidgetSpec{
 			{
 				ID:          "kb-recent",
 				Title:       "Recent KB Articles",
 				Description: "Shows recently published knowledge base articles",
-				Handler:     "kb_widget_recent",
-				Location:    "agent_home",
+		Handler:     "kb_widget_recent",
+		Location:    "dashboard",
 				Size:        "medium",
 				Refreshable: true,
 				RefreshSec:  300,
@@ -158,6 +214,9 @@ func (p *Plugin) GKRegister() (*plugin.GKRegistration, error) {
 // InitWithHost receives the HostAPI from the platform and brings the KB
 // schema up to the current version before the plugin serves requests.
 func (p *Plugin) InitWithHost(config map[string]string, host plugin.HostAPI) error {
+	if err := initTemplates(); err != nil {
+		return fmt.Errorf("KB plugin template init: %w", err)
+	}
 	p.host = host
 	p.dialect = detectDialect(context.Background(), host)
 	p.zinc = newZincClient(config, host)
@@ -199,12 +258,24 @@ func (p *Plugin) Call(fn string, args json.RawMessage) (json.RawMessage, error) 
 		return p.handleRecentWidget(ctx, args)
 	case "handleAdminList":
 		return p.handleAdminList(ctx, args)
+	case "handleCustomerArticle":
+		return p.handleCustomerArticle(ctx, args)
+	case "handleAdminCategories":
+		return p.handleAdminCategories(ctx, args)
 	case "handleAdminArticle":
 		return p.handleAdminArticle(ctx, args)
 	case "handleAdminArticleUpdate":
 		return p.handleAdminArticleUpdate(ctx, args)
 	case "handleAdminArticleDelete":
 		return p.handleAdminArticleDelete(ctx, args)
+	case "handleCustomerList":
+		return p.handleCustomerList(ctx, args)
+	case "handleAgentList":
+		return p.handleAgentList(ctx, args)
+	case "handleAgentArticle":
+		return p.handleAgentArticle(ctx, args)
+	case "handleCustomerSearch":
+		return p.handleCustomerSearch(ctx, args)
 	default:
 		return nil, fmt.Errorf("unknown function: %s", fn)
 	}

@@ -111,3 +111,28 @@
 - [x] Security verified: OWASP top 10 protections in place
 - [x] Performance verified: Sub-second search response with zinc
 - [x] Import verified: Correctly transforms and preserves org_id context
+
+## Milestone 10: Critical UX Fixes & Honest Audit
+### False "Dones" — Correct the Record
+- [x] **Milestone 6 is FALSE.** The three `.pongo2` templates (`kb_article.pongo2`, `knowledge_base.pongo2`, `kb_search.pongo2`) existed as dead code — deleted. Customer, agent, and widget handlers now render via embedded pongo2 templates. Admin handlers (complex with TipTap/JS) stay as inline Go HTML.
+- [x] **Milestone 9 claims corrected.** `GET /customer/knowledge-base` was only true for the now-removed built-in GoatFlow handler. The plugin serves `GET /customer/kb` (HTML via pongo2) and `GET /customer/kb/article/:id` (HTML via pongo2). The `/knowledge-base`, `/kb/search`, and `/kb/article/:id` paths return JSON and are used for programmatic/API access.
+### Agent Experience (Highest Priority — Whole Role is Unserved)
+- [x] **Add agent menu item.** Register an `agent`-location MenuItem (path `/agent/kb`).
+- [x] **Add `/agent/kb` route** with HTML rendering (public/org/agent visibility).
+- [x] **Fix widget links.** Changed to `/agent/kb/article/%d`.
+- [x] **Add agent article detail page** (`/agent/kb/article/:id`).
+- [x] **Agent routes render HTML.** `/agent/kb` and `/agent/kb/article/:id` both render via pongo2 templates (`agent_kb_list.pongo2`, `agent_kb_article.pongo2`). The raw JSON endpoints (`/knowledge-base`, `/kb/search`, `/kb/article/:id`) are the API layer.
+### Customer Experience (Search & Polish)
+- [x] **Add customer search route** `/customer/kb/search` — renders HTML results for public articles only. Uses DB LIKE search on title, summary, and category. Returns search form with results.
+- [ ] **Optionally add customer dashboard widget** (lower priority than agent fixes).
+
+- [x] **Add pagination UI to admin list** — prev/next page controls with current page indicator and article count. `totalCount` is now captured and used.
+- [x] **Add summary field to admin article form** — `handleAdminArticleUpdate` accepts `summary` but the form UI has no summary input. New articles now have a summary field.
+- [x] **Add draft/published/archived status support** — status dropdown alongside visibility in the admin form. JS now reads `form.status.value`.
+- [x] **Add status column to admin list** — color-coded badges (green=Published, yellow=Draft, gray=Archived).
+- [x] **Add delete audit logging** — `handleAdminArticleDelete` now fetches the article title before deleting and logs `[KB AUDIT] org_id=... user=... action=delete article_id=... title=...`.
+- [x] **Add category taxonomy management** — managed CRUD page at `/admin/kb/categories` with add/rename/delete. Admin article form uses a `<select>` dropdown populated from the category table. Existing free-text categories not in the managed list still appear as selectable options. Deletion is safe: articles keep the category name as free-text text, only the managed record is removed.
+
+- [x] **Add CSRF protection — NOT APPLICABLE.** GoatFlow has no CSRF middleware anywhere (confirmed: `demo-route-management.sh` explicitly states "No CSRF protection detected"). The admin write endpoints are already session-authenticated (`_user_login`, `_user_id`, `_org_id` in args), use JSON Content-Type (preflight-requiring), and SameSite cookies. Plugin-only CSRF would be inconsistent and add no real protection. Should be addressed platform-wide if needed.
+- [x] **Resolve JSON vs HTML dual paradigm.** Documented above (Milestone 9 claim). The pattern: JSON endpoints (`/knowledge-base/`, `/kb/search`, `/kb/article/:id`) are for API/programmatic access (e.g., widgets, LLM queries, external integrations). HTML endpoints (`/admin/kb`, `/admin/kb/article/:id`, `/agent/kb`, `/agent/kb/article/:id`, `/customer/kb`, `/customer/kb/article/:id`) render full pages for human users via pongo2 templates. Widget returns `{"html": "..."}` fragments for embedding in dashboards.
+- [x] **Verify zinc actually works — NOT DEPLOYED.** No zinc container in this deployment (confirmed: `docker ps`, config.yaml, env vars). The plugin handles this gracefully: search returns empty results with zero hits. Zinc would need to be added to the docker-compose and plugin configured with `zinc_url`/`zinc_user`/`zinc_password` before this can be tested. Indexing is also missing for CRUD operations (only OTRS import calls `indexDocument`).

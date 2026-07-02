@@ -1,0 +1,17 @@
+{% if articles|length == 0 %}
+<div class="p-4 text-center" style="color: var(--gk-text-muted);"><p class="text-sm">No recent articles.</p></div>
+{% else %}
+<div class="divide-y" style="border-color: var(--gk-border-default);">
+{% for a in articles %}
+<a href="/agent/kb/article/{{ a.ID }}" class="block px-4 py-3 hover:opacity-80 transition-colors" style="color: var(--gk-text-primary);">
+	<div class="flex items-start gap-3">
+		<div class="flex-1 min-w-0">
+			<p class="text-sm font-medium truncate">{{ a.Title }}</p>
+			<p class="text-xs mt-0.5 line-clamp-1" style="color: var(--gk-text-muted);">{{ a.Summary }}</p>
+		</div>
+		<div class="flex-shrink-0 text-xs" style="color: var(--gk-text-muted); padding-top: 1px;">{{ a.DisplayDate }}</div>
+	</div>
+</a>
+{% endfor %}
+</div>
+{% endif %}

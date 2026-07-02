@@ -10,7 +10,7 @@
 package main
 
 import (
-	"github.com/goatkit/goatflow-kb/internal/kb"
+	"github.com/goatkit/goat-kb/internal/kb"
 	"github.com/goatkit/goatflow/pkg/plugin/grpcutil"
 )
 

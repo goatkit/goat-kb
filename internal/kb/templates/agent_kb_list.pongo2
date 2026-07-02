@@ -1,0 +1,37 @@
+<div class="container mx-auto py-6 px-4">
+	<nav class="flex items-center text-sm mb-4">
+		<a href="/dashboard" class="gk-link-neon">Dashboard</a>
+		<svg class="mx-2 h-4 w-4" style="color: var(--gk-text-muted);" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+		<span class="font-medium" style="color: var(--gk-text-primary);">Knowledge Base</span>
+	</nav>
+	<div class="mb-6">
+		<h1 class="text-2xl font-bold gk-heading"><span class="gk-text-gradient">Knowledge Base</span></h1>
+		<p class="mt-1 text-sm" style="color: var(--gk-text-muted);">Browse knowledge base articles and guides</p>
+	</div>
+	{% if articles|length == 0 %}
+	<div class="gk-card-glow">
+		<div class="gk-card-body p-12 text-center">
+			<svg class="h-12 w-12 mx-auto mb-4" style="color: var(--gk-text-muted);" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+			<p class="text-lg font-medium" style="color: var(--gk-text-primary);">No articles available yet</p>
+			<p class="mt-1 text-sm" style="color: var(--gk-text-muted);">Articles will appear here once published.</p>
+		</div>
+	</div>
+	{% else %}
+	{% for a in articles %}
+	<a href="/agent/kb/article/{{ a.ID }}" class="gk-card-glow block hover:opacity-90 transition-opacity mb-4">
+		<div class="gk-card-body">
+			<div class="flex items-start justify-between gap-4">
+				<div class="flex-1 min-w-0">
+					<h3 class="text-lg font-semibold" style="color: var(--gk-text-primary);">{{ a.Title }}</h3>
+					<p class="mt-1 text-sm" style="color: var(--gk-text-muted);">{{ a.Summary }}</p>
+				</div>
+				{% if a.Visibility %}
+				<span class="flex-shrink-0 text-xs px-2 py-1 rounded-full {% if a.Visibility == 'public' %}bg-green-100 text-green-700{% else %}bg-amber-100 text-amber-700{% endif %}">{% if a.Visibility == 'public' %}Users &amp; Agents{% else %}Agents Only{% endif %}</span>
+				{% endif %}
+			</div>
+			<p class="mt-2 text-xs" style="color: var(--gk-text-muted);">Updated: {{ a.DateStr }}</p>
+		</div>
+	</a>
+	{% endfor %}
+	{% endif %}
+</div>

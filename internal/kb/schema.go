@@ -15,7 +15,7 @@ import (
 
 // schemaVersion tracks the KB schema revision. Bump when adding a migration
 // entry below. The host persists applied versions in gk_kb_schema_version.
-const schemaVersion = 1
+const schemaVersion = 2
 
 // dialect is the detected SQL dialect: "mysql" (MariaDB included) or "postgres".
 type dialect string
@@ -236,6 +236,13 @@ var migrations = map[int][]dialectTemplate{
 				INDEX idx_kb_attach_org_article (org_id, article_id)
 			)`,
 		},
+	},
+	2: {
+		// Normalise visibility: "org" was identical to "agent" (same RBAC check)
+		// but confusing. Migrate existing org rows to agent, then remove the
+		// unused value from the UI dropdown.
+		{mysql: `UPDATE IGNORE gk_kb_articles SET visibility = 'agent' WHERE visibility = 'org'`,
+			postgres: `UPDATE gk_kb_articles SET visibility = 'agent' WHERE visibility = 'org'`},
 	},
 }
 

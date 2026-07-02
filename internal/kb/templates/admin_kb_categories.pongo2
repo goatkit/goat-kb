@@ -1,0 +1,117 @@
+<div class="container mx-auto py-6 max-w-3xl">
+	<nav class="flex items-center text-sm mb-4" aria-label="Breadcrumb">
+		<a href="/dashboard" class="gk-link-neon">Dashboard</a>
+		<svg class="mx-2 h-4 w-4" style="color: var(--gk-text-muted);" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+		<a href="/admin/kb" class="gk-link-neon">Knowledge Base</a>
+		<svg class="mx-2 h-4 w-4" style="color: var(--gk-text-muted);" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+		<span class="font-medium" style="color: var(--gk-text-primary);">Categories</span>
+	</nav>
+
+	<div class="flex items-center justify-between mb-6">
+		<h1 class="text-2xl font-bold gk-heading"><span class="gk-text-gradient">Category Taxonomy</span></h1>
+		<a href="/admin/kb" class="gk-btn-secondary text-sm">&larr; Back to Articles</a>
+	</div>
+
+	<div class="gk-card-glow">
+		<div class="gk-card-body p-6">
+			<h3 class="text-lg font-semibold mb-4" style="color: var(--gk-text-primary);">Add Category</h3>
+			<form id="kb-category-add-form" class="flex gap-3 items-end" onsubmit="return submitCategory(event)">
+				<div class="flex-1">
+					<input type="text" id="kb-cat-name-input" class="gk-input-neon w-full" placeholder="Category name..." required maxlength="100">
+				</div>
+				<button type="submit" class="gk-btn-neon whitespace-nowrap">+ Add</button>
+			</form>
+		</div>
+	</div>
+
+	<div class="mt-6">
+		<h3 class="text-lg font-semibold mb-4" style="color: var(--gk-text-primary);">Existing Categories</h3>
+		{% if Categories %}
+		<div class="gk-card-glow">
+			<div class="gk-card-body p-0">
+				<table class="w-full">
+					<thead>
+						<tr style="border-bottom: 1px solid var(--gk-border-default);">
+							<th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider" style="color: var(--gk-text-muted);">Name</th>
+							<th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider" style="color: var(--gk-text-muted);">Articles</th>
+							<th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider" style="color: var(--gk-text-muted);">Actions</th>
+						</tr>
+					</thead>
+					<tbody>
+						{% for cat in Categories %}
+						<tr style="border-bottom: 1px solid var(--gk-border-default);" class="hover:bg-[var(--gk-bg-hover)] transition-colors">
+							<td class="px-6 py-4 whitespace-nowrap">
+								<span class="text-sm font-medium" style="color: var(--gk-text-primary);">{{ cat.Name }}</span>
+							</td>
+							<td class="px-6 py-4 whitespace-nowrap text-sm" style="color: var(--gk-text-muted);">{{ cat.ArticleCount }}</td>
+							<td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+								<span class="gk-link-neon mr-3" style="cursor:pointer;" onclick="showRename({{ cat.ID }}, this)">Rename</span>
+								<button onclick="deleteCategory({{ cat.ID }}, this)" style="color: var(--gk-error);" class="hover:opacity-80 transition-opacity">Delete</button>
+							</td>
+						</tr>
+						{% endfor %}
+					</tbody>
+				</table>
+			</div>
+		</div>
+		{% else %}
+		<div class="gk-card-glow">
+			<div class="gk-card-body py-12 text-center" style="color: var(--gk-text-muted);">
+				<p class="text-lg mb-2">No categories yet</p>
+				<p class="text-sm">Add your first category above to start organizing articles.</p>
+			</div>
+		</div>
+		{% endif %}
+	</div>
+</div>
+
+<script>
+function submitCategory(e) {
+	e.preventDefault();
+	var btn = e.target.querySelector('button[type="submit"]');
+	btn.disabled = true;
+	var input = document.getElementById('kb-cat-name-input');
+	var name = input.value.trim();
+	if (!name) { btn.disabled = false; return false; }
+	fetch('/admin/kb/categories', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ _action: 'add', name: name })
+	}).then(function(r) { return r.json(); }).then(function(d) {
+		if (d.error) { alert(d.error); btn.disabled = false; }
+		else { window.location.reload(); }
+	}).catch(function(err) { alert('Failed: ' + err); btn.disabled = false; });
+	return false;
+}
+
+function showRename(id, el) {
+	var row = el.closest('tr');
+	var nameCell = row.querySelector('td:first-child span');
+	var currentName = nameCell.textContent.trim();
+	var newName = prompt('Rename category to:', currentName);
+	if (!newName || newName.trim() === currentName) return;
+	fetch('/admin/kb/categories', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ _action: 'rename', id: id, name: newName.trim() })
+	}).then(function(r) { return r.json(); }).then(function(d) {
+		if (d.error) { alert(d.error); }
+		else { window.location.reload(); }
+	}).catch(function(err) { alert('Failed: ' + err); });
+}
+
+function deleteCategory(id, el) {
+	var row = el.closest('tr');
+	var nameCell = row.querySelector('td:first-child span');
+	var name = nameCell.textContent.trim();
+	if (!confirm('Delete category "' + name + '"? Articles using it will keep the name but won\'t be linked.')) return;
+	fetch('/admin/kb/categories', {
+		method: 'POST',
+		headers: { 'Content-Type': 'application/json' },
+		body: JSON.stringify({ _action: 'delete', id: id })
+	}).then(function(r) { return r.json(); }).then(function(d) {
+		if (d.error) { alert(d.error); }
+		else { window.location.reload(); }
+	}).catch(function(err) { alert('Failed: ' + err); });
+}
+</script>

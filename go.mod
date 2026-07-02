@@ -1,4 +1,4 @@
-module github.com/goatkit/goatflow-kb
+module github.com/goatkit/goat-kb
 
 go 1.25.10
 
@@ -6,6 +6,7 @@ require github.com/goatkit/goatflow v0.0.0
 
 require (
 	github.com/fatih/color v1.14.1 // indirect
+	github.com/flosch/pongo2/v6 v6.1.0 // indirect
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
 	github.com/hashicorp/go-plugin v1.7.0 // indirect

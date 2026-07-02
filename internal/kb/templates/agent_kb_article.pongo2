@@ -1,0 +1,27 @@
+<div class="container mx-auto py-6 px-4 max-w-3xl">
+	<nav class="flex items-center text-sm mb-4">
+		<a href="/agent/kb" class="gk-link-neon">Knowledge Base</a>
+		<svg class="mx-2 h-4 w-4" style="color: var(--gk-text-muted);" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+		<span class="font-medium" style="color: var(--gk-text-primary);">{{ Title }}</span>
+	</nav>
+	<div class="gk-card-glow">
+		<div class="gk-card-body">
+			<div class="flex items-center justify-between mb-4">
+				<span class="text-xs px-2 py-1 rounded-full" style="background: var(--gk-bg-elevated); color: var(--gk-text-secondary);">{{ Category }}</span>
+				<span class="text-xs" style="color: var(--gk-text-muted);">By {{ Author }} · Updated {{ DateStr }}</span>
+			</div>
+			<h1 class="text-2xl font-bold mb-4" style="color: var(--gk-text-primary);">{{ Title }}</h1>
+			{% if Summary %}
+			<p class="text-base mb-4" style="color: var(--gk-text-secondary); line-height: 1.6;">{{ Summary }}</p>
+			{% endif %}
+			{% if Tags %}
+			<div class="flex flex-wrap gap-2 mb-4">
+				{% for tag in Tags %}
+				<span style="display:inline-flex;align-items:center;gap:0.3rem;padding:0.2rem 0.6rem;border-radius:9999px;font-size:0.8rem;background:var(--gk-primary-subtle,#1e3a5f);color:var(--gk-primary,#89b4fa);white-space:nowrap;">{{ tag }}</span>
+				{% endfor %}
+			</div>
+			{% endif %}
+			<div class="gk-article-content max-w-none">{{ Content|safe }}</div>
+		</div>
+	</div>
+</div>
