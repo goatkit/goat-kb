@@ -146,6 +146,7 @@ func (p *Plugin) handleList(ctx context.Context, args json.RawMessage) (json.Raw
 	if orgID == 0 {
 		orgID = p.host.OrgID(ctx)
 	}
+	if orgID <= 0 { orgID = 1 }
 	offset := (params.Page - 1) * params.PerPage
 
 	visClause := rc.visibilityClause()
@@ -195,6 +196,7 @@ func (p *Plugin) handleRecentWidget(ctx context.Context, args json.RawMessage) (
 	visClause := rc.visibilityClause()
 	orgID := rc.OrgID
 	if orgID == 0 { orgID = p.host.OrgID(ctx) }
+	if orgID == 0 { orgID = 1 }
 
 	rows, err := p.host.DBQuery(ctx,
 		"SELECT id, title, summary, updated_at FROM gk_kb_articles WHERE org_id = ? AND status = 'published'"+visClause+" ORDER BY updated_at DESC LIMIT 5",
@@ -289,10 +291,8 @@ func (p *Plugin) handleSearch(ctx context.Context, args json.RawMessage) (json.R
 	}
 
 	orgID := rc.OrgID
-	if orgID == 0 {
-		orgID = p.host.OrgID(ctx)
-	}
-
+	if orgID == 0 { orgID = p.host.OrgID(ctx) }
+	if orgID == 0 { orgID = 1 }
 	zres, err := p.zinc.search(ctx, params.Query, orgID, params.Page, params.PerPage, rc.maxVisibilityFilter())
 	if err != nil {
 		return errorResponse(502, "zinc search failed: "+err.Error())
@@ -589,8 +589,9 @@ func (p *Plugin) handleAdminList(ctx context.Context, args json.RawMessage) (jso
     }
     if params.Page < 1 { params.Page = 1 }
     if params.PerPage < 1 || params.PerPage > 100 { params.PerPage = 20 }
-    orgID := p.host.OrgID(ctx)
+    orgID := extractReqCtx(args).OrgID
     if orgID == 0 { orgID = p.host.OrgID(ctx) }
+    if orgID == 0 { orgID = 1 }
     offset := (params.Page - 1) * params.PerPage
     p.host.Log(ctx, "info", "kb: admin list", map[string]any{"orgID": orgID})
     rows, err := p.host.DBQuery(ctx,
@@ -750,6 +751,7 @@ func (p *Plugin) handleAdminArticle(ctx context.Context, args json.RawMessage) (
         if orgID == 0 {
             orgID = p.host.OrgID(ctx)
         }
+        if orgID == 0 { orgID = 1 }
         rows, err := p.host.DBQuery(ctx,
             "SELECT id, title, summary, content, category, visibility, status, author, tags, created_at, updated_at FROM gk_kb_articles WHERE id = ? AND org_id = ?",
             id, orgID)
@@ -966,12 +968,9 @@ func (p *Plugin) handleAdminArticleDelete(ctx context.Context, args json.RawMess
 	}
 
 	id, err := strconv.ParseInt(params.ID, 10, 64)
-	if err != nil || id < 1 { return errorResponse(400, "invalid article id") }
-
-	orgID := p.host.OrgID(ctx)
-	if orgID == 0 { orgID = p.host.OrgID(ctx) }
-
-	// Fetch article title for audit before deleting
+    orgID := extractReqCtx(args).OrgID
+    if orgID == 0 { orgID = p.host.OrgID(ctx) }
+    if orgID == 0 { orgID = 1 }
 	rc := extractReqCtx(args)
 	rows, err := p.host.DBQuery(ctx,
 		"SELECT title FROM gk_kb_articles WHERE id = ? AND org_id = ?", id, orgID)
@@ -997,6 +996,7 @@ func (p *Plugin) handleAdminCategories(ctx context.Context, args json.RawMessage
 	rc := extractReqCtx(args)
 	orgID := rc.OrgID
 	if orgID == 0 { orgID = p.host.OrgID(ctx) }
+	if orgID == 0 { orgID = 1 }
 
 	// Check if this is a POST (action) or GET (list)
 	var action struct {
@@ -1104,9 +1104,10 @@ func (p *Plugin) handleAdminArticleUpdate(ctx context.Context, args json.RawMess
 	if updateReq.Author == "" {
 		updateReq.Author = rc.Login
 	}
-    if updateReq.ID < 0 { return errorResponse(400, "invalid article id: ID must not be negative") }
-    orgID := p.host.OrgID(ctx)
+    orgID := extractReqCtx(args).OrgID
     if orgID == 0 { orgID = p.host.OrgID(ctx) }
+    if orgID == 0 { orgID = 1 }
+    if updateReq.ID < 0 { return errorResponse(400, "invalid article id: ID must not be negative") }
     existing, err := p.host.DBQuery(ctx, "SELECT id FROM gk_kb_articles WHERE id = ? AND org_id = ?", updateReq.ID, orgID)
     if err != nil { return errorResponse(500, "check article: "+err.Error()) }
     if len(existing) == 0 {
@@ -1165,6 +1166,7 @@ func (p *Plugin) handleCustomerList(ctx context.Context, args json.RawMessage) (
 	rc := extractReqCtx(args)
 	orgID := rc.OrgID
 	if orgID == 0 { orgID = p.host.OrgID(ctx) }
+	if orgID == 0 { orgID = 1 }
 	if orgID == 0 { p.host.Log(ctx, "warn", "kb: customer list no org", map[string]any{"user": rc.Login, "role": rc.Role}) }
 
 	rows, err := p.host.DBQuery(ctx,
@@ -1205,6 +1207,7 @@ func (p *Plugin) handleCustomerArticle(ctx context.Context, args json.RawMessage
 	rc := extractReqCtx(args)
 	orgID := rc.OrgID
 	if orgID == 0 { orgID = p.host.OrgID(ctx) }
+	if orgID == 0 { orgID = 1 }
 
 	var idStr string
 	_ = json.Unmarshal(args, &struct{ ID *string `json:"id"` }{ID: &idStr})
@@ -1247,6 +1250,7 @@ func (p *Plugin) handleAgentList(ctx context.Context, args json.RawMessage) (jso
 	rc := extractReqCtx(args)
 	orgID := rc.OrgID
 	if orgID == 0 { orgID = p.host.OrgID(ctx) }
+	if orgID == 0 { orgID = 1 }
 	if orgID == 0 { p.host.Log(ctx, "warn", "kb: agent list no org", map[string]any{"user": rc.Login, "role": rc.Role}) }
 
 	rows, err := p.host.DBQuery(ctx,
@@ -1287,6 +1291,7 @@ func (p *Plugin) handleAgentArticle(ctx context.Context, args json.RawMessage) (
 	rc := extractReqCtx(args)
 	orgID := rc.OrgID
 	if orgID == 0 { orgID = p.host.OrgID(ctx) }
+	if orgID == 0 { orgID = 1 }
 
 	var idStr string
 	_ = json.Unmarshal(args, &struct{ ID *string `json:"id"` }{ID: &idStr})
@@ -1328,6 +1333,7 @@ func (p *Plugin) handleCustomerSearch(ctx context.Context, args json.RawMessage)
 	rc := extractReqCtx(args)
 	orgID := rc.OrgID
 	if orgID == 0 { orgID = p.host.OrgID(ctx) }
+	if orgID == 0 { orgID = 1 }
 
 	type searchForm struct {
 		Query string `json:"q"`
