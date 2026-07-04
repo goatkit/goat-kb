@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
+	"html"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/microcosm-cc/bluemonday"
 )
 
 // --- request context ---
@@ -94,6 +96,9 @@ type listParams struct {
 	Page     int    `json:"page,omitempty"`
 	PerPage  int    `json:"per_page,omitempty"`
 	Category string `json:"category,omitempty"`
+	Search   string `json:"q,omitempty"`
+	Scope    string `json:"scope,omitempty"`
+	Status   string `json:"status,omitempty"`
 }
 
 // listResult is the response for kb_list.
@@ -221,7 +226,7 @@ func (p *Plugin) handleRecentWidget(ctx context.Context, args json.RawMessage) (
 		})
 	}
 
-	html, err := renderTemplate("widget_recent.pongo2", map[string]any{"articles": articles})
+	html, err := p.render("widget_recent.pongo2", ctx, map[string]any{"articles": articles})
 	if err != nil { return errorResponse(500, "render template: "+err.Error()) }
 	return json.Marshal(map[string]string{"html": html})
 }
@@ -411,8 +416,6 @@ func (p *Plugin) handleArticle(ctx context.Context, args json.RawMessage) (json.
 type importParams struct {
 	Body        string `json:"_body,omitempty"`
 	ContentType string `json:"_content_type,omitempty"`
-	// CSRF: the host injects a CSRF token via middleware; we verify it.
-	CSRFToken string `json:"_csrf_token,omitempty"`
 }
 
 // handleImport accepts an OTRS/Znuny FAQ XML export (POST body, passed
@@ -579,6 +582,42 @@ func jsonMarshalStr(v any) string {
 }
 
 
+// Policy for sanitising rich HTML content (matches GoatFlow platform policy).
+var htmlPolicy = bluemonday.NewPolicy().
+	AllowElements("b", "strong", "i", "em", "u", "s", "strike", "del").
+	AllowElements("h1", "h2", "h3", "h4", "h5", "h6").
+	AllowElements("p", "br", "hr").
+	AllowElements("ul", "ol", "li").
+	AllowElements("blockquote", "code", "pre").
+	AllowElements("table", "thead", "tbody", "tfoot", "tr", "th", "td").
+	AllowAttrs("colspan", "rowspan").OnElements("td", "th").
+	AllowElements("img").
+	AllowAttrs("src", "alt", "title", "width", "height").OnElements("img").
+	AllowURLSchemes("http", "https", "data").
+	AllowElements("a").
+	AllowAttrs("href").OnElements("a").
+	AllowURLSchemes("http", "https", "mailto").
+	RequireParseableURLs(true).
+	RequireNoFollowOnLinks(true).
+	RequireNoReferrerOnLinks(true).
+	AddTargetBlankToFullyQualifiedLinks(true).
+	AllowAttrs("class").Matching(bluemonday.SpaceSeparatedTokens).OnElements("div", "span", "p", "ul", "ol", "li", "table", "tr", "td", "th", "h1", "h2", "h3", "h4", "h5", "h6", "blockquote", "code", "pre", "img").
+	AllowAttrs("style").OnElements("span", "mark")
+
+// sanitiseHTML cleans HTML content to prevent XSS, matching the
+// GoatFlow platform policy (bluemonday UGCPolicy-based).
+func sanitiseHTML(s string) string {
+	return htmlPolicy.Sanitize(s)
+}
+
+// escapeLike escapes % and _ in a search term for safe use in SQL LIKE.
+func escapeLike(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	s = strings.ReplaceAll(s, `_`, `\_`)
+	return s
+}
+
 func (p *Plugin) handleAdminList(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
     if p.host == nil { return errorResponse(503, "host API not available") }
     params := listParams{Page: 1, PerPage: 20}
@@ -592,11 +631,24 @@ func (p *Plugin) handleAdminList(ctx context.Context, args json.RawMessage) (jso
     orgID := extractReqCtx(args).OrgID
     if orgID == 0 { orgID = p.host.OrgID(ctx) }
     if orgID == 0 { orgID = 1 }
+    query := strings.TrimSpace(params.Search)
+    filterCat := strings.TrimSpace(params.Category)
+    filterScope := strings.TrimSpace(params.Scope)
+    filterStatus := strings.TrimSpace(params.Status)
     offset := (params.Page - 1) * params.PerPage
-    p.host.Log(ctx, "info", "kb: admin list", map[string]any{"orgID": orgID})
+
+    conds := []string{"org_id = ?"}; a := []any{orgID}
+    if query != "" { like := "%" + escapeLike(query) + "%"; conds = append(conds, "(title LIKE ? OR summary LIKE ?)"); a = append(a, like, like) }
+    if filterCat != "" { conds = append(conds, "category = ?"); a = append(a, filterCat) }
+    if filterScope != "" { conds = append(conds, "visibility = ?"); a = append(a, filterScope) }
+    if filterStatus != "" { conds = append(conds, "status = ?"); a = append(a, filterStatus) }
+    where := strings.Join(conds, " AND ")
+    a = append(a, params.PerPage, offset)
+
+    p.host.Log(ctx, "info", "kb: admin list", map[string]any{"orgID": orgID, "search": query, "category": filterCat, "scope": filterScope, "status": filterStatus})
     rows, err := p.host.DBQuery(ctx,
-        "SELECT id, title, summary, category, visibility, status, author, created_at, updated_at FROM gk_kb_articles WHERE org_id = ? ORDER BY updated_at DESC LIMIT ? OFFSET ?",
-        orgID, params.PerPage, offset)
+        "SELECT id, title, summary, category, visibility, status, author, created_at, updated_at FROM gk_kb_articles WHERE "+where+" ORDER BY updated_at DESC LIMIT ? OFFSET ?",
+        a...)
     if err != nil { return errorResponse(500, "query articles: " + err.Error()) }
     articles := make([]articleSummary, 0, len(rows))
     for _, row := range rows {
@@ -607,124 +659,49 @@ func (p *Plugin) handleAdminList(ctx context.Context, args json.RawMessage) (jso
             Author: toString(row["author"]), UpdatedAt: toString(row["updated_at"]),
         })
     }
-    totalCount := int64(0)
-    countRows, err := p.host.DBQuery(ctx, "SELECT COUNT(*) as total FROM gk_kb_articles WHERE org_id = ?", orgID)
+    ca := []any{orgID}
+    if query != "" { like := "%" + escapeLike(query) + "%"; ca = append(ca, like, like) }
+    if filterCat != "" { ca = append(ca, filterCat) }
+    if filterScope != "" { ca = append(ca, filterScope) }
+    if filterStatus != "" { ca = append(ca, filterStatus) }
+    cr, err := p.host.DBQuery(ctx, "SELECT COUNT(*) as total FROM gk_kb_articles WHERE "+where, ca...)
     if err != nil { return errorResponse(500, "count articles: " + err.Error()) }
-    if len(countRows) > 0 { totalCount = toInt64(countRows[0]["total"]) }
+    totalCount := int64(0)
+    if len(cr) > 0 { totalCount = toInt64(cr[0]["total"]) }
     totalPages := int(totalCount + int64(params.PerPage) - 1) / int(params.PerPage)
     if totalPages < 1 { totalPages = 1 }
 
-
-    // Build HTML admin interface
-    var h strings.Builder
-    h.WriteString(`<div class="container mx-auto py-6">
-    <nav class="flex items-center text-sm mb-4" aria-label="Breadcrumb">
-        <a href="/dashboard" class="gk-link-neon">Dashboard</a>
-        <svg class="mx-2 h-4 w-4" style="color: var(--gk-text-muted);" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
-        <span class="font-medium" style="color: var(--gk-text-primary);">Knowledge Base</span>
-    </nav>
-    <div class="flex items-center justify-between mb-6">
-        <div>
-            <h1 class="text-2xl font-bold gk-heading"><span class="gk-text-gradient">Knowledge Base</span></h1>
-            <p class="mt-1 text-sm" style="color: var(--gk-text-muted);">Organise your team knowledge</p>
-        </div>
-        <a href="/admin/kb/article/new" class="gk-btn-neon">
-            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-            New Article
-        </a>
-    </div>`)
-    if len(articles) == 0 {
-        h.WriteString(`<div class="gk-card-glow">
-            <div class="gk-card-body p-12 text-center">
-                <svg class="h-12 w-12 mx-auto mb-4" style="color: var(--gk-text-muted);" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                <p class="text-lg font-medium" style="color: var(--gk-text-primary);">No articles yet</p>
-                <p class="mt-1 text-sm" style="color: var(--gk-text-muted);">Click "New Article" to create your first KB article.</p>
-            </div>
-        </div>`)
-    } else {
-        h.WriteString(`<div class="gk-card-glow">
-            <div class="gk-card-body p-0">
-                <div class="overflow-x-auto">
-                    <table class="w-full">
-                        <thead>
-                            <tr style="background: var(--gk-bg-elevated); border-bottom: 1px solid var(--gk-border-default);">
-                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider" style="color: var(--gk-text-muted);">Title</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider" style="color: var(--gk-text-muted);">Category</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider" style="color: var(--gk-text-muted);">Status</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider" style="color: var(--gk-text-muted);">Visibility</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider" style="color: var(--gk-text-muted);">Author</th>
-                                <th class="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider" style="color: var(--gk-text-muted);">Updated</th>
-                                <th class="px-6 py-3 text-right text-xs font-semibold uppercase tracking-wider" style="color: var(--gk-text-muted);">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>`)
-        for _, a := range articles {
-            visBadge := ""
-            switch a.Visibility {
-            case "public":
-                visBadge = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style="background: rgba(var(--gk-success-rgb), 0.15); color: var(--gk-success);">Users &amp; Agents</span>`
-            case "agent":
-                visBadge = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style="background: rgba(var(--gk-warning-rgb), 0.15); color: var(--gk-warning);">Agents Only</span>`
-            default:
-                visBadge = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style="background: var(--gk-bg-elevated); color: var(--gk-text-secondary);">` + a.Visibility + `</span>`
-            }
-            statusBadge := ""
-            switch a.Status {
-            case "published":
-                statusBadge = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style="background: rgba(var(--gk-success-rgb), 0.15); color: var(--gk-success);">Published</span>`
-            case "draft":
-                statusBadge = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style="background: rgba(var(--gk-warning-rgb), 0.15); color: var(--gk-warning);">Draft</span>`
-            case "archived":
-                statusBadge = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style="background: var(--gk-bg-elevated); color: var(--gk-text-muted);">Archived</span>`
-            default:
-                statusBadge = `<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style="background: var(--gk-bg-elevated); color: var(--gk-text-secondary);">` + a.Status + `</span>`
-            }
-            h.WriteString(fmt.Sprintf(`
-                <tr style="border-bottom: 1px solid var(--gk-border-default);" class="hover:bg-[var(--gk-bg-hover)] transition-colors">
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <a href="/admin/kb/article/%d" class="text-sm font-medium gk-link-neon">%s</a>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm" style="color: var(--gk-text-secondary);">%s</td>
-                    <td class="px-6 py-4 whitespace-nowrap">%s</td>
-                    <td class="px-6 py-4 whitespace-nowrap">%s</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm" style="color: var(--gk-text-secondary);">%s</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm" style="color: var(--gk-text-muted);">%s</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <a href="/admin/kb/article/%d" class="gk-link-neon mr-3">Edit</a>
-                        <button onclick="kbDeleteArticle(%d)" style="color: var(--gk-error);" class="hover:opacity-80 transition-opacity">Delete</button>
-                    </td>
-                </tr>`, a.ID, sanitiseText(a.Title), sanitiseText(a.Category), statusBadge, visBadge, sanitiseText(a.Author), sanitiseText(a.UpdatedAt), a.ID, a.ID))
+    catRows, _ := p.host.DBQuery(ctx, "SELECT name FROM gk_kb_categories WHERE org_id = ? ORDER BY name", orgID)
+    categories := make([]string, 0, len(catRows))
+    for _, r := range catRows { categories = append(categories, toString(r["name"])) }
+    // Build list data
+    templateArticles := make([]map[string]any, 0, len(articles))
+    for _, a := range articles {
+        ds := a.UpdatedAt
+        if len(ds) >= 10 { ds = ds[:10] }
+        templateArticles = append(templateArticles, map[string]any{
+            "ID": a.ID, "Title": a.Title, "Summary": a.Summary,
+            "Category": a.Category, "Visibility": a.Visibility, "Status": a.Status,
+            "Author": a.Author, "DateStr": ds,
+        })
     }
-        h.WriteString(`
-                </tbody>
-            </table>
-        </div>
-        </div>`)
-    }
-	// Pagination controls
-	if totalPages > 1 {
-		h.WriteString(fmt.Sprintf(`<div class="flex items-center justify-between mt-4 px-1">
-			<div class="text-sm" style="color: var(--gk-text-muted);">Page %d of %d (%d articles)</div>
-			<div class="flex space-x-2">
-				<a href="/admin/kb?page=%d" class="gk-btn-secondary px-4 py-2 text-sm inline-flex items-center %s">Prev</a>
-				<a href="/admin/kb?page=%d" class="gk-btn-secondary px-4 py-2 text-sm inline-flex items-center %s">Next</a>
-			</div>
-		</div>`, params.Page, totalPages, totalCount,
-			max(1, params.Page-1), map[bool]string{true: "opacity-50 pointer-events-none", false: ""}[params.Page <= 1],
-			min(totalPages, params.Page+1), map[bool]string{true: "opacity-50 pointer-events-none", false: ""}[params.Page >= totalPages]))
-	}
-    h.WriteString(`</div>
-<script>
-function kbDeleteArticle(id) {
-    if (!confirm("Delete this article?")) return;
-    fetch("/admin/kb/article/" + id, { method: "DELETE" })
-        .then(r => r.json())
-        .then(() => location.reload())
-        .catch(err => alert("Delete failed: " + err));
-}
-</script>`)
+    html, err := p.render("kb_list.pongo2", ctx, map[string]any{
+        "IsAdmin":        true,
+        "IsAgent":        false,
+        "IsCustomer":     false,
+        "articles":       templateArticles,
+        "page":           params.Page,
+        "totalPages":     totalPages,
+        "totalCount":     totalCount,
+        "Query":          query,
+        "Categories":     categories,
+        "FilterCategory": filterCat,
+        "FilterScope":    filterScope,
+        "FilterStatus":   filterStatus,
+    })
+    if err != nil { return errorResponse(500, "render template: "+err.Error()) }
     return json.Marshal(map[string]string{
-        "html": h.String(), "title": "Knowledge Base", "active_page": "kb-admin",
+        "html": html, "title": "Knowledge Base", "active_page": "kb-admin",
     })
 }
 
@@ -778,7 +755,10 @@ func (p *Plugin) handleAdminArticle(ctx context.Context, args json.RawMessage) (
     }
     // Build visibility dropdown options
 	visOpts := []string{"public", "agent"}
-	visLabels := map[string]string{"public": "Users & Agents", "agent": "Agents Only"}
+	visLabels := map[string]string{
+		"public": p.tr(ctx, "kb.users_agents", "Users & Agents"),
+		"agent":  p.tr(ctx, "kb.agents_only", "Agents Only"),
+	}
 	var visSelBuf strings.Builder
 	for _, v := range visOpts {
 		sel := ""
@@ -793,33 +773,50 @@ func (p *Plugin) handleAdminArticle(ctx context.Context, args json.RawMessage) (
 
 	// Build status dropdown options
 	statusOpts := []string{"draft", "published", "archived"}
+	statusLabels := map[string]string{
+		"draft":     p.tr(ctx, "kb.draft", "Draft"),
+		"published": p.tr(ctx, "kb.published", "Published"),
+		"archived":  p.tr(ctx, "kb.archived", "Archived"),
+	}
 	var statusSelBuf strings.Builder
 	for _, v := range statusOpts {
 		sel := ""
 		if article.Status == v || (article.Status == "" && v == "published") {
 			sel = " selected"
 		}
-		statusSelBuf.WriteString(fmt.Sprintf(`<option value="%s"%s>%s</option>`, v, sel, strings.Title(v)))
+		stLabel := statusLabels[v]
+		if stLabel == "" { stLabel = strings.Title(v) }
+		statusSelBuf.WriteString(fmt.Sprintf(`<option value="%s"%s>%s</option>`, v, sel, stLabel))
 	}
 	statusSelect := statusSelBuf.String()
 	// Build category dropdown options from gk_kb_categories table
 	var catSelBuf strings.Builder
-	orgID := p.host.OrgID(ctx)
+	orgID := rc.OrgID
+	if orgID == 0 { orgID = p.host.OrgID(ctx) }
+	if orgID == 0 { orgID = 1 }
 	catRows, _ := p.host.DBQuery(ctx, "SELECT name FROM gk_kb_categories WHERE org_id = ? ORDER BY name", orgID)
 	catNames := make(map[string]bool, len(catRows))
-	catSelBuf.WriteString(`<option value="">-- None --</option>`)
+	catSelBuf.WriteString(fmt.Sprintf(`<option value="">%s</option>`, p.tr(ctx, "kb.none_option", "-- None --")))
 	for _, row := range catRows {
 		name := toString(row["name"])
 		catNames[name] = true
 		sel := ""
 		if article.Category == name { sel = " selected" }
-		catSelBuf.WriteString(fmt.Sprintf(`<option value="%s"%s>%s</option>`, sanitiseText(name), sel, sanitiseText(name)))
+		catSelBuf.WriteString(fmt.Sprintf(`<option value="%s"%s>%s</option>`, html.EscapeString(name), sel, html.EscapeString(name)))
 	}
 	// If article has a category not in the managed list, add it as an option
 	if article.Category != "" && !catNames[article.Category] {
-		catSelBuf.WriteString(fmt.Sprintf(`<option value="%s" selected>%s</option>`, sanitiseText(article.Category), sanitiseText(article.Category)))
+		catSelBuf.WriteString(fmt.Sprintf(`<option value="%s" selected>%s</option>`, html.EscapeString(article.Category), html.EscapeString(article.Category)))
 	}
 	catSelect := catSelBuf.String()
+    // Pre-fetch existing attachments so the edit form can render them.
+    // Only meaningful for already-saved articles (uploads need a row).
+    var attachmentsJSON string
+    if article.ID > 0 {
+        attachmentsJSON = jsonMarshalStr(p.fetchAttachments(ctx, orgID, article.ID))
+    } else {
+        attachmentsJSON = "[]"
+    }
 
     // Build the HTML in parts to avoid complex multi-line fmt.Sprintf
     var h strings.Builder
@@ -827,15 +824,15 @@ func (p *Plugin) handleAdminArticle(ctx context.Context, args json.RawMessage) (
     
     // Breadcrumbs
     h.WriteString(fmt.Sprintf(`<nav class="flex items-center text-sm mb-4" aria-label="Breadcrumb">
-        <a href="/dashboard" class="gk-link-neon">Dashboard</a>
+        <a href="/dashboard" class="gk-link-neon">%s</a>
         <svg class="mx-2 h-4 w-4" style="color: var(--gk-text-muted);" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
-        <a href="/admin/kb" class="gk-link-neon">Knowledge Base</a>
+        <a href="/admin/kb" class="gk-link-neon">%s</a>
         <svg class="mx-2 h-4 w-4" style="color: var(--gk-text-muted);" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
         <span class="font-medium" style="color: var(--gk-text-primary);">%s</span>
-    </nav>`, sanitiseText(map[bool]string{true: "Edit KB Article #" + strconv.FormatInt(article.ID, 10), false: "New KB Article"}[article.ID > 0])))
+    </nav>`, p.tr(ctx, "kb.dashboard", "Dashboard"), p.tr(ctx, "kb.knowledge_base", "Knowledge Base"), sanitiseText(map[bool]string{true: p.tr(ctx, "kb.edit_article", "Edit KB Article") + " #" + strconv.FormatInt(article.ID, 10), false: p.tr(ctx, "kb.new_article_heading", "New KB Article")}[article.ID > 0])))
     
     // Heading
-    heading := map[bool]string{true: "Edit KB Article", false: "New KB Article"}[article.ID > 0]
+    heading := map[bool]string{true: p.tr(ctx, "kb.edit_article", "Edit KB Article"), false: p.tr(ctx, "kb.new_article_heading", "New KB Article")}[article.ID > 0]
     h.WriteString(fmt.Sprintf(`<div class="max-w-3xl">
         <h1 class="text-2xl font-bold mb-6 gk-heading"><span class="gk-text-gradient">%s</span></h1>`, heading))
     
@@ -847,44 +844,71 @@ func (p *Plugin) handleAdminArticle(ctx context.Context, args json.RawMessage) (
     h.WriteString(fmt.Sprintf(`<input type="hidden" name="id" value="%d">`, article.ID))
     
     // Title
-    h.WriteString(fmt.Sprintf(`<div><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">Title</label>
-        <input type="text" name="title" value="%s" class="gk-input-neon w-full" required></div>`, sanitiseText(article.Title)))
+    h.WriteString(fmt.Sprintf(`<div><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">%s</label>
+        <input type="text" name="title" value="%s" class="gk-input-neon w-full" required></div>`, p.tr(ctx, "kb.title", "Title"), html.EscapeString(article.Title)))
 
     // Summary
-    h.WriteString(fmt.Sprintf(`<div><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">Summary</label>
-        <input type="text" name="summary" value="%s" class="gk-input-neon w-full" placeholder="Brief description of the article..."></div>`, sanitiseText(article.Summary)))
+    h.WriteString(fmt.Sprintf(`<div><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">%s</label>
+        <input type="text" name="summary" value="%s" class="gk-input-neon w-full" placeholder="%s"></div>`, p.tr(ctx, "kb.summary", "Summary"), html.EscapeString(article.Summary), p.tr(ctx, "kb.summary_placeholder", "Brief description of the article...")))
     // Category + Visibility + Status grid
     h.WriteString(fmt.Sprintf(`<div class="grid grid-cols-3 gap-4">
-        <div><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">Category <a href="/admin/kb/categories" class="text-xs gk-link-neon ml-1" style="font-weight:400;">Manage</a></label>
+        <div><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">%s <a href="/admin/kb/categories" class="text-xs gk-link-neon ml-1" style="font-weight:400;">%s</a></label>
             <select name="category" class="gk-select-neon w-full">%s</select></div>
-        <div><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">Visibility</label>
+        <div><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">%s</label>
             <select name="visibility" class="gk-select-neon w-full">%s</select></div>
-        <div><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">Status</label>
+        <div><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">%s</label>
             <select name="status" class="gk-select-neon w-full">%s</select></div>
-    </div>`, catSelect, visSelect, statusSelect))
+    </div>`, p.tr(ctx, "kb.category", "Category"), p.tr(ctx, "kb.manage", "Manage"), catSelect, p.tr(ctx, "kb.visibility", "Visibility"), visSelect, p.tr(ctx, "kb.status", "Status"), statusSelect))
     // Tags chip input
-    h.WriteString(fmt.Sprintf(`<div style="margin-top: 1rem;"><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">Tags</label>
+    h.WriteString(fmt.Sprintf(`<div style="margin-top: 1rem;"><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">%s</label>
         <div id="kb-tags" style="display:flex;flex-wrap:wrap;gap:0.4rem;padding:0.5rem;min-height:2.5rem;border:1px solid var(--gk-border,#444);border-radius:6px;background:var(--gk-bg-input,#1e1e2e);cursor:text;" onclick="document.getElementById('kb-tags-input').focus()">
-            <input type="text" id="kb-tags-input" placeholder="Type and press comma or Enter..." style="flex:1;min-width:150px;border:none;outline:none;background:transparent;color:var(--gk-text,#cdd6f4);font-size:0.9rem;padding:0.2rem;">
-        </div></div>`, sanitiseText(article.Tags)))
-    
-    h.WriteString(`<div><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">Content</label>
-        <div id="kbContentEditor" class="gk-tiptap-container w-full" style="min-height:300px;"></div></div>`)
+            <input type="text" id="kb-tags-input" placeholder="%s" style="flex:1;min-width:150px;border:none;outline:none;background:transparent;color:var(--gk-text,#cdd6f4);font-size:0.9rem;padding:0.2rem;">
+        </div></div>`, p.tr(ctx, "kb.tags", "Tags"), p.tr(ctx, "kb.tags_placeholder", "Type and press comma or Enter...")))
+
+    h.WriteString(fmt.Sprintf(`<div><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">%s</label>
+        <div id="kbContentEditor" class="gk-tiptap-container w-full" style="min-height:300px;"></div></div>`, p.tr(ctx, "kb.content", "Content")))
+
+    // Attachments section — only rendered for already-saved articles,
+    // since uploads need an existing article row to attach to.
+    if article.ID > 0 {
+        h.WriteString(fmt.Sprintf(`<div class="kb-attachments-section" style="margin-top:1rem;">
+            <label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">%s</label>
+            <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem;">
+                <input type="file" id="kb-attach-file" class="gk-input-neon" style="flex:1;padding:0.35rem;">
+                <button type="button" onclick="kbUploadFile()" class="gk-btn-neon" style="white-space:nowrap;"><i class="fa-solid fa-upload"></i> %s</button>
+            </div>
+            <div id="kb-attachments-status" style="font-size:0.8rem;color:var(--gk-text-muted,#888);min-height:1.2rem;margin-bottom:0.4rem;"></div>
+            <div id="kb-attachments-list" style="display:flex;flex-direction:column;gap:0.4rem;"></div>
+            <div id="kb-attachments-data" style="display:none;">%s</div>
+        </div>`, p.tr(ctx, "kb.attachments", "Attachments"), p.tr(ctx, "kb.upload", "Upload"), attachmentsJSON))
+    }
     
     // Buttons
-    btnTxt := map[bool]string{true: "Update", false: "Create"}[article.ID > 0]
+    btnTxt := map[bool]string{true: p.tr(ctx, "kb.update", "Update"), false: p.tr(ctx, "kb.create", "Create")}[article.ID > 0]
     h.WriteString(fmt.Sprintf(`<div class="flex justify-end space-x-3 pt-2">
-        <button type="button" onclick="history.back()" class="gk-btn-secondary">Cancel</button>
+        <button type="button" onclick="history.back()" class="gk-btn-secondary">%s</button>
         <button type="submit" class="gk-btn-neon">%s</button>
-    </div>`, btnTxt))
+    </div>`, p.tr(ctx, "kb.cancel", "Cancel"), btnTxt))
     
     // Close form and card
     h.WriteString(`</form></div></div></div>`)
     
     // Script with TipTap editor
     h.WriteString(`</div>`)
-    loginJS := strings.ReplaceAll(rc.Login, `\`, `\\`)
-    loginJS = strings.ReplaceAll(loginJS, `'`, `\'`)
+	loginJS := strings.ReplaceAll(rc.Login, `\`, `\\`)
+	loginJS = strings.ReplaceAll(loginJS, `"`, `\"`)
+	loginJS = strings.ReplaceAll(loginJS, "\n", `\n`)
+	loginJS = strings.ReplaceAll(loginJS, "\r", `\r`)
+	loginJS = strings.ReplaceAll(loginJS, `</`, `<\/`)
+    // i18n prompt strings for the editor (Translate returns the key if unset)
+    imgPrompt := p.host.Translate(ctx, "editor.insert_image_prompt")
+    if imgPrompt == "" || imgPrompt == "editor.insert_image_prompt" {
+        imgPrompt = "Enter image URL (or leave empty to pick a file):"
+    }
+    linkPrompt := p.host.Translate(ctx, "editor.insert_link_prompt")
+    if linkPrompt == "" || linkPrompt == "editor.insert_link_prompt" {
+        linkPrompt = "Enter URL:"
+    }
     h.WriteString(fmt.Sprintf(`<script src="/static/js/tiptap.min.js"></script>
 <script src="/static/js/tiptap-editor.js"></script>
 <script>
@@ -897,7 +921,10 @@ func (p *Plugin) handleAdminArticle(ctx context.Context, args json.RawMessage) (
             TiptapEditor.init('kbContentEditor', {
                 placeholder: 'Write article content...',
                 editorMode: 'richtext',
-                content: editorContent
+                content: editorContent,
+                imageUploadUrl: '/admin/kb/article/' + (parseInt(document.getElementById('kb-article-form').elements['id'].value) || 0) + '/attachments',
+                imageUrlPrompt: %s,
+                linkUrlPrompt: %s
             });
             return true;
         }
@@ -909,13 +936,13 @@ func (p *Plugin) handleAdminArticle(ctx context.Context, args json.RawMessage) (
         document.addEventListener('DOMContentLoaded', initEditor);
     }
 })();
-</script>`, jsonMarshalStr(sanitiseText(article.Content))))
+</script>`, jsonMarshalStr(sanitiseText(article.Content)), jsonMarshalStr(imgPrompt), jsonMarshalStr(linkPrompt)))
 
     // Tags chip JS
     h.WriteString(fmt.Sprintf(`<script>
 // Tag chip functions
 function getArticleTags(){return Array.from(document.querySelectorAll('#kb-tags .kb-tag-badge')).map(function(t){return t.getAttribute('data-value');});}
-function addArticleTag(text){if(text.indexOf(',')!==-1){text.split(',').forEach(function(s){s=s.trim();if(s)addArticleTag(s);});return;}text=text.replace(/\.$/, '').trim();if(!text)return;var c=document.getElementById('kb-tags'),i=document.getElementById('kb-tags-input'),t=document.createElement('span');t.className='kb-tag-badge';t.setAttribute('data-value',text);t.style.cssText='display:inline-flex;align-items:center;gap:0.3rem;padding:0.2rem 0.6rem;border-radius:9999px;font-size:0.8rem;background:var(--gk-primary-subtle,#1e3a5f);color:var(--gk-primary,#89b4fa);white-space:nowrap;';t.innerHTML=text+'<span onclick="this.parentElement.remove()" style="cursor:pointer;margin-left:0.2rem;font-size:1rem;line-height:1;opacity:0.7;">&times;</span>';c.insertBefore(t,i);}
+function addArticleTag(text){if(text.indexOf(',')!==-1){text.split(',').forEach(function(s){s=s.trim();if(s)addArticleTag(s);});return;}text=text.replace(/\.$/, '').trim();if(!text)return;var c=document.getElementById('kb-tags'),i=document.getElementById('kb-tags-input'),t=document.createElement('span');t.className='kb-tag-badge';t.setAttribute('data-value',text);t.style.cssText='display:inline-flex;align-items:center;gap:0.3rem;padding:0.2rem 0.6rem;border-radius:9999px;font-size:0.8rem;background:var(--gk-primary-subtle,#1e3a5f);color:var(--gk-primary,#89b4fa);white-space:nowrap;';t.textContent='';t.appendChild(document.createTextNode(text));t.insertAdjacentHTML('beforeend','<span onclick="this.parentElement.remove()" style="cursor:pointer;margin-left:0.2rem;font-size:1rem;line-height:1;opacity:0.7;">&times;</span>');c.insertBefore(t,i);}
 (function(){var i=document.getElementById('kb-tags-input');if(!i)return;i.addEventListener('keydown',function(e){if(e.key===','||e.key==='Enter'){e.preventDefault();var v=this.value.trim().replace(/,$/,'').trim();if(v){addArticleTag(v);this.value='';}}if(e.key==='Backspace'&&!this.value){var t=document.querySelectorAll('#kb-tags .kb-tag-badge');if(t.length)t[t.length-1].remove();}});i.addEventListener('blur',function(){var v=this.value.trim().replace(/,$/,'').trim();if(v){addArticleTag(v);this.value='';}});})();
 // Seed existing tags
 var tagStr = %s;
@@ -942,11 +969,169 @@ document.getElementById("kb-article-form").addEventListener("submit", function(e
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data)
     }).then(function(r) {
-        if (r.ok) window.location.href = "/admin/kb";
+        if (r.ok) { var f=document.createElement('form'); f.method='GET'; f.action='/admin/kb'; document.body.appendChild(f); f.submit(); }
         else r.json().then(function(d) { alert(d.error || "Save failed"); });
     });
 });
 </script>`, jsonMarshalStr(sanitiseText(article.Tags)), loginJS))
+
+    // Attachment upload/list/download/delete JS. Reads the hidden
+    // #kb-attachments-data JSON blob as its source of truth.
+    h.WriteString(fmt.Sprintf(`<script>
+var KB_ARTICLE_ID = %d;
+var KB_THUMB_URLS = [];
+function kbAttachIcon(ct) {
+    ct = (ct || '').toLowerCase();
+    if (ct === 'application/pdf') return 'fa-file-pdf';
+    if (ct.indexOf('image/') === 0) return 'fa-file-image';
+    if (ct.indexOf('zip') !== -1 || ct.indexOf('compressed') !== -1 || ct.indexOf('tar') !== -1 || ct.indexOf('gzip') !== -1) return 'fa-file-zipper';
+    if (ct.indexOf('word') !== -1 || ct.indexOf('msword') !== -1 || ct.indexOf('officedocument.wordprocessing') !== -1) return 'fa-file-word';
+    return 'fa-file';
+}
+function kbAttachData() {
+    var el = document.getElementById('kb-attachments-data');
+    if (!el) return [];
+    try { var v = JSON.parse(el.textContent || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; }
+}
+function kbSetAttachData(list) {
+    var el = document.getElementById('kb-attachments-data');
+    if (el) el.textContent = JSON.stringify(list || []);
+}
+function kbHumanSize(n) {
+    n = +n || 0;
+    if (n >= 1048576) return (n / 1048576).toFixed(1) + ' MB';
+    if (n >= 1024) return (n / 1024).toFixed(1) + ' KB';
+    return n + ' B';
+}
+function kbStatus(msg) {
+    var s = document.getElementById('kb-attachments-status');
+    if (s) s.textContent = msg || '';
+}
+function kbRevokeThumbs() {
+    (KB_THUMB_URLS || []).forEach(function(u){ try { URL.revokeObjectURL(u); } catch(e){} });
+    KB_THUMB_URLS = [];
+}
+function kbRenderAttachments() {
+    kbRevokeThumbs();
+    var list = document.getElementById('kb-attachments-list');
+    if (!list) return;
+    var items = kbAttachData();
+    list.innerHTML = '';
+    items.forEach(function(a) {
+        var row = document.createElement('div');
+        row.className = 'kb-attach-row';
+        row.setAttribute('data-id', a.id);
+        row.style.cssText = 'display:flex;align-items:center;gap:0.6rem;padding:0.5rem 0.7rem;border:1px solid var(--gk-border,#444);border-radius:6px;background:var(--gk-bg-input,#1e1e2e);';
+        var iconWrap = document.createElement('span');
+        iconWrap.className = 'kb-attach-iconwrap';
+        iconWrap.setAttribute('data-id', a.id);
+        iconWrap.style.cssText = 'display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;flex:0 0 28px;border-radius:4px;background:var(--gk-bg,#111);border:1px solid var(--gk-border,#444);overflow:hidden;';
+        iconWrap.innerHTML = '<i class="fa-solid ' + kbAttachIcon(a.content_type) + '" style="font-size:1rem;color:var(--gk-primary,#89b4fa);"></i>';
+        var name = document.createElement('span');
+        name.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--gk-text,#cdd6f4);';
+        name.textContent = a.filename || '(unnamed)';
+        var size = document.createElement('span');
+        size.style.cssText = 'font-size:0.75rem;color:var(--gk-text-muted,#888);white-space:nowrap;';
+        size.textContent = a.size_human || kbHumanSize(a.size);
+        var dl = document.createElement('button');
+        dl.type = 'button';
+        dl.className = 'gk-btn-secondary';
+        dl.style.cssText = 'padding:0.2rem 0.55rem;font-size:0.8rem;';
+        dl.innerHTML = '<i class="fa-solid fa-download"></i>';
+        dl.title = 'Download';
+        dl.onclick = (function(id){ return function(){ kbDownloadAttachment(id); }; })(a.id);
+        var del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'gk-btn-secondary';
+        del.style.cssText = 'padding:0.2rem 0.55rem;font-size:0.8rem;color:var(--gk-danger,#f38ba8);';
+        del.innerHTML = '<i class="fa-solid fa-trash"></i>';
+        del.title = 'Delete';
+        del.onclick = (function(id){ return function(){ kbDeleteAttachment(id); }; })(a.id);
+        row.appendChild(iconWrap);
+        row.appendChild(name);
+        row.appendChild(size);
+        row.appendChild(dl);
+        row.appendChild(del);
+        list.appendChild(row);
+        if ((a.content_type || '').indexOf('image/') === 0) kbLoadThumb(a.id);
+    });
+}
+function kbLoadThumb(id) {
+    fetch('/kb/attachment/' + id).then(function(r){ return r.json(); }).then(function(d) {
+        if (!d || d.error || !d.data) return;
+        try {
+            var bin = atob(d.data);
+            var bytes = new Uint8Array(bin.length);
+            for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            var blob = new Blob([bytes], {type: d.content_type || 'application/octet-stream'});
+            var url = URL.createObjectURL(blob);
+            KB_THUMB_URLS.push(url);
+            var wrap = document.querySelector('.kb-attach-iconwrap[data-id="' + id + '"]');
+            if (wrap) wrap.innerHTML = '<img alt="" src="' + url + '" style="width:100%%;height:100%%;object-fit:cover;">';
+        } catch (e) {}
+    }).catch(function(){});
+}
+function kbUploadFile() {
+    var input = document.getElementById('kb-attach-file');
+    if (!input || !input.files || !input.files[0]) { kbStatus('Choose a file first.'); return; }
+    var f = input.files[0];
+    if (f.size > 10 * 1024 * 1024) { kbStatus('File too large (max 10 MB).'); return; }
+    kbStatus('Uploading ' + f.name + ' ...');
+    var reader = new FileReader();
+    reader.onload = function() {
+        var dataUrl = reader.result || '';
+        var comma = dataUrl.indexOf(',');
+        var base64 = comma >= 0 ? dataUrl.slice(comma + 1) : dataUrl;
+        fetch('/admin/kb/article/' + KB_ARTICLE_ID + '/attachments', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({id: String(KB_ARTICLE_ID), filename: f.name, content_type: f.type || 'application/octet-stream', data: base64})
+        }).then(function(r) {
+            if (!r.ok) return r.json().then(function(d){ throw new Error((d && d.error) || 'Upload failed'); });
+            return r.json();
+        }).then(function(d) {
+            var items = kbAttachData();
+            items.push({id: d.id, filename: d.filename, content_type: d.content_type, size: d.size, size_human: d.size_human || kbHumanSize(d.size)});
+            kbSetAttachData(items);
+            kbRenderAttachments();
+            input.value = '';
+            kbStatus('Uploaded ' + (d.filename || f.name));
+        }).catch(function(e) { kbStatus('Error: ' + e.message); });
+    };
+    reader.onerror = function() { kbStatus('Failed to read file.'); };
+    reader.readAsDataURL(f);
+}
+function kbDeleteAttachment(id) {
+    if (!confirm('Delete this attachment?')) return;
+    fetch('/admin/kb/article/' + KB_ARTICLE_ID + '/attachments/' + id, {method: 'DELETE'})
+        .then(function(r) {
+            if (!r.ok) return r.json().then(function(d){ throw new Error((d && d.error) || 'Delete failed'); });
+            var items = kbAttachData().filter(function(a){ return a.id !== id; });
+            kbSetAttachData(items);
+            kbRenderAttachments();
+            kbStatus('Attachment deleted.');
+        }).catch(function(e) { kbStatus('Error: ' + e.message); });
+}
+function kbDownloadAttachment(id) {
+    kbStatus('Preparing download ...');
+    fetch('/kb/attachment/' + id).then(function(r){ return r.json(); }).then(function(d) {
+        if (!d || d.error || !d.data) throw new Error((d && d.error) || 'No data returned');
+        var bin = atob(d.data);
+        var bytes = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        var blob = new Blob([bytes], {type: d.content_type || 'application/octet-stream'});
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = d.filename || ('attachment-' + id);
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(function(){ if (a.parentNode) a.parentNode.removeChild(a); URL.revokeObjectURL(url); }, 200);
+        kbStatus('');
+    }).catch(function(e) { kbStatus('Download error: ' + e.message); });
+}
+(function(){ if (document.getElementById('kb-attachments-list')) kbRenderAttachments(); })();
+</script>`, article.ID))
     return json.Marshal(map[string]string{
         "html":        h.String(),
         "title":       "Edit KB Article",
@@ -979,8 +1164,16 @@ func (p *Plugin) handleAdminArticleDelete(ctx context.Context, args json.RawMess
 	}
 	title := toString(rows[0]["title"])
 
-	log.Printf("[KB AUDIT] org_id=%d user=%s user_id=%d action=delete article_id=%d title=%q",
-		orgID, rc.Login, rc.UserID, id, title)
+	p.host.Log(ctx, "info", "kb: audit delete", map[string]any{
+		"org_id":     orgID,
+		"user":       rc.Login,
+		"user_id":    rc.UserID,
+		"article_id": id,
+		"title":      title,
+	})
+
+	// Clean up all attachments before deleting the article row.
+	p.deleteArticleAttachments(ctx, orgID, id)
 
 	_, err = p.host.DBExec(ctx, "DELETE FROM gk_kb_articles WHERE id = ? AND org_id = ?", id, orgID)
 	if err != nil { return errorResponse(500, "delete article: "+err.Error()) }
@@ -1030,7 +1223,7 @@ func (p *Plugin) handleAdminCategories(ctx context.Context, args json.RawMessage
 		})
 	}
 
-	html, err := renderTemplate("admin_kb_categories.pongo2", map[string]any{
+	html, err := p.render("admin_kb_categories.pongo2", ctx, map[string]any{
 		"Categories": categories,
 	})
 	if err != nil {
@@ -1050,6 +1243,7 @@ func (p *Plugin) handleAdminCategoryAction(ctx context.Context, orgID int64, act
 	case "add":
 		if name == "" { return errorResponse(400, "category name required") }
 		if len(name) > 100 { return errorResponse(400, "category name too long") }
+		name = sanitiseText(name)
 		_, err := p.host.DBExec(ctx,
 			"INSERT INTO gk_kb_categories (org_id, name) VALUES (?, ?)",
 			orgID, name)
@@ -1062,6 +1256,7 @@ func (p *Plugin) handleAdminCategoryAction(ctx context.Context, orgID int64, act
 	case "rename":
 		if name == "" { return errorResponse(400, "category name required") }
 		if id <= 0 { return errorResponse(400, "invalid category id") }
+		name = sanitiseText(name)
 		_, err := p.host.DBExec(ctx,
 			"UPDATE gk_kb_categories SET name = ? WHERE id = ? AND org_id = ?",
 			name, id, orgID)
@@ -1104,6 +1299,24 @@ func (p *Plugin) handleAdminArticleUpdate(ctx context.Context, args json.RawMess
 	if updateReq.Author == "" {
 		updateReq.Author = rc.Login
 	}
+    // Sanitise at storage time (defence-in-depth).
+    updateReq.Content = sanitiseHTML(updateReq.Content)
+    updateReq.Title = sanitiseText(updateReq.Title)
+    updateReq.Summary = sanitiseText(updateReq.Summary)
+    updateReq.Category = sanitiseText(updateReq.Category)
+    updateReq.Author = sanitiseText(updateReq.Author)
+    updateReq.Tags = sanitiseText(updateReq.Tags)
+
+    // Validate visibility and status against allowed enum values (F6).
+    allowedVis := map[string]bool{"public": true, "agent": true}
+    allowedStatus := map[string]bool{"draft": true, "published": true, "archived": true}
+    if updateReq.Visibility != "" && !allowedVis[updateReq.Visibility] {
+        return errorResponse(400, "invalid visibility: must be 'public' or 'agent'")
+    }
+    if updateReq.Status != "" && !allowedStatus[updateReq.Status] {
+        return errorResponse(400, "invalid status: must be 'draft', 'published', or 'archived'")
+    }
+
     orgID := extractReqCtx(args).OrgID
     if orgID == 0 { orgID = p.host.OrgID(ctx) }
     if orgID == 0 { orgID = 1 }
@@ -1117,23 +1330,14 @@ func (p *Plugin) handleAdminArticleUpdate(ctx context.Context, args json.RawMess
         if status == "" { status = "published" }
         vis := updateReq.Visibility
         if vis == "" { vis = "public" }
-        if updateReq.ID == 0 {
-            _, err := p.host.DBExec(ctx, `INSERT INTO gk_kb_articles
-                (org_id, title, slug, summary, content, category, visibility, author, status, tags)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                orgID, updateReq.Title, slug, updateReq.Summary,
-                updateReq.Content, updateReq.Category, vis,
-                updateReq.Author, status, updateReq.Tags)
-            if err != nil { return errorResponse(500, "insert article: "+err.Error()) }
-        } else {
-            _, err := p.host.DBExec(ctx, `INSERT INTO gk_kb_articles
-                (id, org_id, title, slug, summary, content, category, visibility, author, status, tags)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                updateReq.ID, orgID, updateReq.Title, slug, updateReq.Summary,
-                updateReq.Content, updateReq.Category, vis,
-                updateReq.Author, status, updateReq.Tags)
-            if err != nil { return errorResponse(500, "insert article: "+err.Error()) }
-        }
+        // Auto-increment insert only (F4: no caller-supplied ID).
+        _, err := p.host.DBExec(ctx, `INSERT INTO gk_kb_articles
+            (org_id, title, slug, summary, content, category, visibility, author, status, tags)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            orgID, updateReq.Title, slug, updateReq.Summary,
+            updateReq.Content, updateReq.Category, vis,
+            updateReq.Author, status, updateReq.Tags)
+        if err != nil { return errorResponse(500, "insert article: "+err.Error()) }
         return json.Marshal(map[string]string{"status": "created"})
     }
     var sets []string
@@ -1158,50 +1362,84 @@ func (p *Plugin) handleAdminArticleUpdate(ctx context.Context, args json.RawMess
 
 
 
-// handleCustomerList renders the customer-facing KB article list.
-// Customers only see articles with visibility = 'public'.
 func (p *Plugin) handleCustomerList(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
 	if p.host == nil { return errorResponse(503, "host API not available") }
-
 	rc := extractReqCtx(args)
 	orgID := rc.OrgID
 	if orgID == 0 { orgID = p.host.OrgID(ctx) }
 	if orgID == 0 { orgID = 1 }
 	if orgID == 0 { p.host.Log(ctx, "warn", "kb: customer list no org", map[string]any{"user": rc.Login, "role": rc.Role}) }
+	page := 1; perPage := 15
+	var raw struct { Page int `json:"page"`; Q string `json:"q"`; Category string `json:"category"` }
+	if len(args) > 0 { _ = json.Unmarshal(args, &raw) }
+	if raw.Page > 0 { page = raw.Page }
+	query := strings.TrimSpace(raw.Q)
+	filterCat := strings.TrimSpace(raw.Category)
+	offset := (page - 1) * perPage
 
-	rows, err := p.host.DBQuery(ctx,
-		"SELECT id, title, summary, updated_at FROM gk_kb_articles WHERE org_id = ? AND status = 'published' AND visibility = 'public' ORDER BY updated_at DESC",
-		orgID)
+	baseWhere := "org_id = ? AND status = 'published' AND visibility = 'public'"
+	conds := []string{baseWhere}; a := []any{orgID}
+	if query != "" { like := "%" + escapeLike(query) + "%"; conds = append(conds, "(title LIKE ? OR summary LIKE ?)"); a = append(a, like, like) }
+	if filterCat != "" { conds = append(conds, "category = ?"); a = append(a, filterCat) }
+	where := strings.Join(conds, " AND ")
+	a = append(a, perPage, offset)
+
+	rows, err := p.host.DBQuery(ctx, "SELECT id, title, summary, category, updated_at FROM gk_kb_articles WHERE "+where+" ORDER BY updated_at DESC LIMIT ? OFFSET ?", a...)
 	if err != nil { return errorResponse(500, "query articles: "+err.Error()) }
-
-	type articleRow struct {
-		ID      int64
-		Title   string
-		Summary string
-		DateStr string
-	}
+	type articleRow struct { ID int64; Title string; Summary string; Category string; DateStr string }
 	articles := make([]articleRow, 0, len(rows))
 	for _, row := range rows {
-		dateStr := toString(row["updated_at"])
-		if len(dateStr) >= 10 { dateStr = dateStr[:10] }
+		ds := toString(row["updated_at"]); if len(ds) >= 10 { ds = ds[:10] }
 		articles = append(articles, articleRow{
-			ID:      toInt64(row["id"]),
-			Title:   sanitiseText(toString(row["title"])),
-			Summary: sanitiseText(toString(row["summary"])),
-			DateStr: dateStr,
+			ID: toInt64(row["id"]), Title: sanitiseText(toString(row["title"])), Summary: sanitiseText(toString(row["summary"])),
+			Category: sanitiseText(toString(row["category"])), DateStr: ds,
 		})
 	}
 
-	html, err := renderTemplate("customer_kb_list.pongo2", map[string]any{"articles": articles})
-	if err != nil { return errorResponse(500, "render template: "+err.Error()) }
+	ca := []any{orgID}
+	if query != "" { like := "%" + escapeLike(query) + "%"; ca = append(ca, like, like) }
+	if filterCat != "" { ca = append(ca, filterCat) }
+	cr, err := p.host.DBQuery(ctx, "SELECT COUNT(*) as total FROM gk_kb_articles WHERE "+where, ca...)
+	totalCount := 0
+	if err == nil && len(cr) > 0 { totalCount = int(toInt64(cr[0]["total"])) }
+	totalPages := (totalCount + perPage - 1) / perPage
+	if totalPages < 1 { totalPages = 1 }
 
+	catRows, _ := p.host.DBQuery(ctx, "SELECT name FROM gk_kb_categories WHERE org_id = ? ORDER BY name", orgID)
+	categories := make([]string, 0, len(catRows))
+	for _, r := range catRows { categories = append(categories, toString(r["name"])) }
+
+	html, err := p.render("kb_list.pongo2", ctx, map[string]any{
+		"articles": articles, "page": page, "totalPages": totalPages, "totalCount": totalCount,
+		"Query": query, "Categories": categories, "FilterCategory": filterCat,
+		"IsAdmin": false, "IsAgent": false, "IsCustomer": true,
+	})
+	if err != nil { return errorResponse(500, "render template: "+err.Error()) }
 	return json.Marshal(map[string]string{"html": html})
 }
+
+
+
 
 
 // handleCustomerArticle renders a single KB article for customer viewing.
 // Only shows articles with visibility = 'public'.
 func (p *Plugin) handleCustomerArticle(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+	return p.renderArticleDetail(ctx, args, false)
+}
+
+// handleAgentArticle renders a single KB article for agent viewing.
+func (p *Plugin) handleAgentArticle(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
+	return p.renderArticleDetail(ctx, args, true)
+}
+
+type sidebarItem struct {
+	ID      int64
+	Title   string
+	DateStr string
+}
+
+func (p *Plugin) renderArticleDetail(ctx context.Context, args json.RawMessage, isAgent bool) (json.RawMessage, error) {
 	if p.host == nil { return errorResponse(503, "host API not available") }
 
 	rc := extractReqCtx(args)
@@ -1219,9 +1457,10 @@ func (p *Plugin) handleCustomerArticle(ctx context.Context, args json.RawMessage
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil || id < 1 { return errorResponse(400, "invalid article id") }
 
-	rows, err := p.host.DBQuery(ctx,
-		"SELECT id, title, summary, content, category, author, tags, updated_at FROM gk_kb_articles WHERE id = ? AND org_id = ? AND status = 'published' AND visibility = 'public'",
-		id, orgID)
+	// Fetch article
+	query := "SELECT id, title, summary, content, category, visibility, author, tags, updated_at FROM gk_kb_articles WHERE id = ? AND org_id = ? AND status = 'published'"
+	query += rc.visibilityClause()
+	rows, err := p.host.DBQuery(ctx, query, id, orgID)
 	if err != nil { return errorResponse(500, "query article: "+err.Error()) }
 	if len(rows) == 0 { return errorResponse(404, "article not found") }
 
@@ -1229,153 +1468,121 @@ func (p *Plugin) handleCustomerArticle(ctx context.Context, args json.RawMessage
 	dateStr := toString(row["updated_at"])
 	if len(dateStr) >= 10 { dateStr = dateStr[:10] }
 
-	html, err := renderTemplate("customer_kb_article.pongo2", map[string]any{
-		"Title":    sanitiseText(toString(row["title"])),
-		"Content":  sanitiseText(toString(row["content"])),
-		"Category": sanitiseText(toString(row["category"])),
-		"Summary":  sanitiseText(toString(row["summary"])),
-		"Author":   sanitiseText(toString(row["author"])),
-		"Tags":     splitTags(toString(row["tags"])),
-		"DateStr":  dateStr,
-	})
+	// Fetch related articles (same category, excluding current)
+	relQuery := "SELECT id, title, updated_at FROM gk_kb_articles WHERE org_id = ? AND category = ? AND id != ? AND status = 'published'"
+	relQuery += rc.visibilityClause()
+	relQuery += " ORDER BY updated_at DESC LIMIT 5"
+	relRows, _ := p.host.DBQuery(ctx, relQuery, orgID, toString(row["category"]), id)
+	related := make([]sidebarItem, 0, len(relRows))
+	for _, r := range relRows {
+		ds := toString(r["updated_at"])
+		if len(ds) >= 10 { ds = ds[:10] }
+		related = append(related, sidebarItem{
+			ID:      toInt64(r["id"]),
+			Title:   sanitiseText(toString(r["title"])),
+			DateStr: ds,
+		})
+	}
 
+	// Fetch recent articles (excluding current)
+	recQuery := "SELECT id, title, updated_at FROM gk_kb_articles WHERE org_id = ? AND id != ? AND status = 'published'"
+	recQuery += rc.visibilityClause()
+	recQuery += " ORDER BY updated_at DESC LIMIT 5"
+	recRows, _ := p.host.DBQuery(ctx, recQuery, orgID, id)
+	recent := make([]sidebarItem, 0, len(recRows))
+	for _, r := range recRows {
+		ds := toString(r["updated_at"])
+		if len(ds) >= 10 { ds = ds[:10] }
+		recent = append(recent, sidebarItem{
+			ID:      toInt64(r["id"]),
+			Title:   sanitiseText(toString(r["title"])),
+			DateStr: ds,
+		})
+	}
+
+	html, err := p.render("article_detail.pongo2", ctx, map[string]any{
+		"IsAgent":         isAgent,
+		"Title":           sanitiseText(toString(row["title"])),
+		"Content":         sanitiseHTML(toString(row["content"])),
+		"Category":        sanitiseText(toString(row["category"])),
+		"Visibility":      toString(row["visibility"]),
+		"Summary":         sanitiseText(toString(row["summary"])),
+		"Author":          sanitiseText(toString(row["author"])),
+		"Tags":            splitTags(toString(row["tags"])),
+		"DateStr":         dateStr,
+		"RelatedArticles": related,
+		"RecentArticles":  recent,
+		"Attachments":     p.fetchAttachments(ctx, orgID, id),
+	})
+	if err != nil { return errorResponse(500, "render template: "+err.Error()) }
 	return json.Marshal(map[string]string{"html": html})
 }
 
-// handleAgentList renders the KB article list for agents.
-// Agents see public, org, and agent-visibility articles.
 func (p *Plugin) handleAgentList(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
 	if p.host == nil { return errorResponse(503, "host API not available") }
-
 	rc := extractReqCtx(args)
 	orgID := rc.OrgID
 	if orgID == 0 { orgID = p.host.OrgID(ctx) }
 	if orgID == 0 { orgID = 1 }
 	if orgID == 0 { p.host.Log(ctx, "warn", "kb: agent list no org", map[string]any{"user": rc.Login, "role": rc.Role}) }
+	page := 1; perPage := 15
+	var raw struct {
+		Page int `json:"page"`; Q string `json:"q"`; Category string `json:"category"`; Scope string `json:"scope"`; Status string `json:"status"`
+	}
+	if len(args) > 0 { _ = json.Unmarshal(args, &raw) }
+	if raw.Page > 0 { page = raw.Page }
+	query := strings.TrimSpace(raw.Q)
+	filterCat := strings.TrimSpace(raw.Category)
+	filterScope := strings.TrimSpace(raw.Scope)
+	filterStatus := strings.TrimSpace(raw.Status)
+	offset := (page - 1) * perPage
 
-	rows, err := p.host.DBQuery(ctx,
-		"SELECT id, title, summary, visibility, updated_at FROM gk_kb_articles WHERE org_id = ? AND status = 'published' ORDER BY updated_at DESC",
-		orgID)
+	conds := []string{"org_id = ?", "status = 'published'"}; a := []any{orgID}
+	if query != "" { like := "%" + escapeLike(query) + "%"; conds = append(conds, "(title LIKE ? OR summary LIKE ?)"); a = append(a, like, like) }
+	if filterCat != "" { conds = append(conds, "category = ?"); a = append(a, filterCat) }
+	if filterScope != "" { conds = append(conds, "visibility = ?"); a = append(a, filterScope) }
+	if filterStatus != "" { conds = append(conds, "status = ?"); a = append(a, filterStatus) }
+	where := " WHERE " + strings.Join(conds, " AND ")
+	a = append(a, perPage, offset)
+
+	rows, err := p.host.DBQuery(ctx, "SELECT id, title, summary, category, visibility, status, author, updated_at FROM gk_kb_articles"+where+" ORDER BY updated_at DESC LIMIT ? OFFSET ?", a...)
 	if err != nil { return errorResponse(500, "query articles: "+err.Error()) }
-
 	type articleRow struct {
-		ID         int64
-		Title      string
-		Summary    string
-		Visibility string
-		DateStr    string
+		ID int64; Title string; Summary string; Category string; Visibility string; Status string; Author string; DateStr string
 	}
 	articles := make([]articleRow, 0, len(rows))
 	for _, row := range rows {
-		dateStr := toString(row["updated_at"])
-		if len(dateStr) >= 10 { dateStr = dateStr[:10] }
+		ds := toString(row["updated_at"]); if len(ds) >= 10 { ds = ds[:10] }
 		articles = append(articles, articleRow{
-			ID:         toInt64(row["id"]),
-			Title:      sanitiseText(toString(row["title"])),
-			Summary:    sanitiseText(toString(row["summary"])),
-			Visibility: toString(row["visibility"]),
-			DateStr:    dateStr,
+			ID: toInt64(row["id"]), Title: sanitiseText(toString(row["title"])), Summary: sanitiseText(toString(row["summary"])),
+			Category: sanitiseText(toString(row["category"])), Visibility: toString(row["visibility"]),
+			Status: toString(row["status"]), Author: sanitiseText(toString(row["author"])), DateStr: ds,
 		})
 	}
 
-	html, err := renderTemplate("agent_kb_list.pongo2", map[string]any{"articles": articles})
-	if err != nil { return errorResponse(500, "render template: "+err.Error()) }
+	ca := []any{orgID}
+	if query != "" { like := "%" + escapeLike(query) + "%"; ca = append(ca, like, like) }
+	if filterCat != "" { ca = append(ca, filterCat) }
+	if filterScope != "" { ca = append(ca, filterScope) }
+	if filterStatus != "" { ca = append(ca, filterStatus) }
+	cr, err := p.host.DBQuery(ctx, "SELECT COUNT(*) as total FROM gk_kb_articles"+where, ca...)
+	totalCount := 0
+	if err == nil && len(cr) > 0 { totalCount = int(toInt64(cr[0]["total"])) }
+	totalPages := (totalCount + perPage - 1) / perPage
+	if totalPages < 1 { totalPages = 1 }
 
-	return json.Marshal(map[string]string{"html": html})
-}
-
-// handleAgentArticle renders a single KB article for agent viewing.
-func (p *Plugin) handleAgentArticle(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
-	if p.host == nil { return errorResponse(503, "host API not available") }
-
-	rc := extractReqCtx(args)
-	orgID := rc.OrgID
-	if orgID == 0 { orgID = p.host.OrgID(ctx) }
-	if orgID == 0 { orgID = 1 }
-
-	var idStr string
-	_ = json.Unmarshal(args, &struct{ ID *string `json:"id"` }{ID: &idStr})
-	if idStr == "" {
-		var raw map[string]any
-		_ = json.Unmarshal(args, &raw)
-		if v, ok := raw["id"]; ok { idStr = fmt.Sprintf("%v", v) }
-	}
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil || id < 1 { return errorResponse(400, "invalid article id") }
-
-	rows, err := p.host.DBQuery(ctx,
-		"SELECT id, title, summary, content, category, author, tags, updated_at FROM gk_kb_articles WHERE id = ? AND org_id = ? AND status = 'published'",
-		id, orgID)
-	if err != nil { return errorResponse(500, "query article: "+err.Error()) }
-	if len(rows) == 0 { return errorResponse(404, "article not found") }
-
-	row := rows[0]
-	dateStr := toString(row["updated_at"])
-	if len(dateStr) >= 10 { dateStr = dateStr[:10] }
-	html, err := renderTemplate("agent_kb_article.pongo2", map[string]any{
-		"Title":    sanitiseText(toString(row["title"])),
-		"Content":  sanitiseText(toString(row["content"])),
-		"Category": sanitiseText(toString(row["category"])),
-		"Summary":  sanitiseText(toString(row["summary"])),
-		"Author":   sanitiseText(toString(row["author"])),
-		"Tags":     splitTags(toString(row["tags"])),
-		"DateStr":  dateStr,
+	catRows, _ := p.host.DBQuery(ctx, "SELECT name FROM gk_kb_categories WHERE org_id = ? ORDER BY name", orgID)
+	categories := make([]string, 0, len(catRows))
+	for _, r := range catRows { categories = append(categories, toString(r["name"])) }
+	html, err := p.render("kb_list.pongo2", ctx, map[string]any{
+		"articles": articles, "page": page, "totalPages": totalPages, "totalCount": totalCount,
+		"Query": query, "Categories": categories, "FilterCategory": filterCat, "FilterScope": filterScope, "FilterStatus": filterStatus,
+		"IsAdmin": false, "IsAgent": true, "IsCustomer": false,
 	})
 	if err != nil { return errorResponse(500, "render template: "+err.Error()) }
-
 	return json.Marshal(map[string]string{"html": html})
 }
 
-// handleCustomerSearch renders search results for customers (public articles only).
-func (p *Plugin) handleCustomerSearch(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
-	if p.host == nil { return errorResponse(503, "host API not available") }
 
-	rc := extractReqCtx(args)
-	orgID := rc.OrgID
-	if orgID == 0 { orgID = p.host.OrgID(ctx) }
-	if orgID == 0 { orgID = 1 }
 
-	type searchForm struct {
-		Query string `json:"q"`
-	}
-	var form searchForm
-	_ = json.Unmarshal(args, &form)
-	query := strings.TrimSpace(form.Query)
 
-	type articleRow struct {
-		ID       int64
-		Title    string
-		Summary  string
-		Category string
-		DateStr  string
-	}
-	articles := make([]articleRow, 0)
-
-	if query != "" {
-		like := "%" + query + "%"
-		rows, err := p.host.DBQuery(ctx,
-			"SELECT id, title, summary, category, updated_at FROM gk_kb_articles WHERE org_id = ? AND visibility = 'public' AND status = 'published' AND (title LIKE ? OR summary LIKE ? OR category LIKE ?) ORDER BY updated_at DESC LIMIT 20",
-			orgID, like, like, like)
-		if err != nil { return errorResponse(500, "search articles: "+err.Error()) }
-
-		for _, row := range rows {
-			dateStr := toString(row["updated_at"])
-			if len(dateStr) >= 10 { dateStr = dateStr[:10] }
-			articles = append(articles, articleRow{
-				ID:       toInt64(row["id"]),
-				Title:    sanitiseText(toString(row["title"])),
-				Summary:  sanitiseText(toString(row["summary"])),
-				Category: sanitiseText(toString(row["category"])),
-				DateStr:  dateStr,
-			})
-		}
-	}
-
-	html, err := renderTemplate("customer_kb_search.pongo2", map[string]any{
-		"articles": articles,
-		"Query":    query,
-	})
-	if err != nil { return errorResponse(500, "render template: "+err.Error()) }
-
-	return json.Marshal(map[string]string{"html": html})
-}

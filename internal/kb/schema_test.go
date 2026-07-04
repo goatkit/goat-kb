@@ -102,6 +102,9 @@ func (h *fakeHost) DBExec(_ context.Context, query string, args ...any) (int64, 
 		h.nextID++
 		h.tables["gk_kb_articles"] = append(h.tables["gk_kb_articles"], row)
 		return 1, nil
+	case strings.HasPrefix(q, "UPDATE GK_KB_ARTICLES SET VISIBILITY"):
+		// Migration v2: convert org → agent. Dialect-agnostic plain UPDATE, no args.
+		return 0, nil
 	case strings.HasPrefix(q, "UPDATE GK_KB_ARTICLES"):
 		// args: title, summary, content, category, visibility, author, status,
 		// tags, source, source_id, id, org_id
@@ -209,6 +212,9 @@ func (h *fakeHost) GetFile(_ context.Context, _ string) ([]byte, map[string]stri
 }
 func (h *fakeHost) DeleteFile(_ context.Context, _ string) error { return nil }
 func (h *fakeHost) ListFiles(_ context.Context, _ string) ([]plugin.FileInfo, error) { return nil, nil }
+func (h *fakeHost) GenerateThumbnail(_ context.Context, _ []byte, _ string, _, _ int) ([]byte, string, error) {
+	return []byte("thumb"), "image/jpeg", nil
+}
 
 // --- dialect detection ---
 

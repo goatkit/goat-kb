@@ -1,6 +1,7 @@
 package kb
 
 import (
+	"context"
 	"embed"
 	"fmt"
 	"sync"
@@ -50,7 +51,17 @@ func initTemplates() error {
 // renderTemplate executes a compiled .pongo2 template with the given data
 // and returns the rendered HTML string. Returns an error if the template
 // name hasn't been compiled (programming error — all should be compiled).
+//
+// If the caller did not provide a "t" function in data, a no-op is injected
+// that returns "" so pongo2's |default filter yields the English fallback.
+// Production callers use Plugin.render() which injects a real translator.
 func renderTemplate(name string, data map[string]any) (string, error) {
+	if data == nil {
+		data = map[string]any{}
+	}
+	if _, ok := data["t"]; !ok {
+		data["t"] = func(string, ...any) string { return "" }
+	}
 	templateMu.RLock()
 	tpl, ok := compiledTemplates[name]
 	templateMu.RUnlock()
@@ -62,4 +73,33 @@ func renderTemplate(name string, data map[string]any) (string, error) {
 		return "", fmt.Errorf("render template %s: %w", name, err)
 	}
 	return out, nil
+}
+
+// render injects the i18n "t" function into the template context and renders.
+// The t function is backed by HostAPI.Translate, returning "" for missing keys
+// so pongo2's |default filter provides the English fallback.
+// This is the standard GoatFlow plugin i18n pattern — templates use
+// {{ t("kb.key")|default:"English" }}, identical to host template syntax.
+func (p *Plugin) render(name string, ctx context.Context, data map[string]any) (string, error) {
+	if data == nil {
+		data = map[string]any{}
+	}
+	data["t"] = func(key string, _ ...any) string {
+		s := p.host.Translate(ctx, key)
+		if s == "" || s == key {
+			return ""
+		}
+		return s
+	}
+	return renderTemplate(name, data)
+}
+
+// tr translates a single key with an English fallback, for use in Go code
+// that builds inline HTML (e.g. the admin article form via fmt.Sprintf).
+func (p *Plugin) tr(ctx context.Context, key, fallback string) string {
+	s := p.host.Translate(ctx, key)
+	if s == "" || s == key {
+		return fallback
+	}
+	return s
 }

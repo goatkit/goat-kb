@@ -2,6 +2,7 @@ package kb
 
 import (
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
@@ -18,8 +19,8 @@ func TestGKRegisterMilestoneOneContract(t *testing.T) {
 		t.Fatalf("GKRegister returned error: %v", err)
 	}
 
-	if reg.Name != "kb" {
-		t.Fatalf("Name = %q, want kb", reg.Name)
+	if reg.Name != "goat-kb" {
+		t.Fatalf("Name = %q, want goat-kb", reg.Name)
 	}
 	if reg.Version == "" || reg.Description == "" || reg.Author == "" || reg.License == "" {
 		t.Fatalf("registration metadata incomplete: %+v", reg)
@@ -89,5 +90,113 @@ func TestInitRequiresHostAPI(t *testing.T) {
 	err := New().Init(map[string]string{"plugin_name": "kb"})
 	if err == nil || !strings.Contains(err.Error(), "requires HostAPI") {
 		t.Fatalf("Init error = %v, want HostAPI requirement", err)
+	}
+}
+
+func TestInitTemplates(t *testing.T) {
+	if err := initTemplates(); err != nil {
+		t.Fatalf("initTemplates failed: %v", err)
+	}
+
+	templateMu.RLock()
+	defer templateMu.RUnlock()
+	want := map[string]bool{
+		"kb_list.pongo2":                true,
+		"article_detail.pongo2":         true,
+		"admin_kb_categories.pongo2":    true,
+		"widget_recent.pongo2":          true,
+	}
+
+	for name := range want {
+		if _, ok := compiledTemplates[name]; !ok {
+			t.Errorf("template %s not compiled", name)
+		}
+	}
+
+	// Quick render smoke test — render each template with minimal context
+	for name := range compiledTemplates {
+		_, err := renderTemplate(name, map[string]any{
+			"IsAdmin":        true,
+			"IsAgent":        false,
+			"IsCustomer":     false,
+			"articles":       []any{},
+			"page":           1,
+			"totalPages":     1,
+			"totalCount":     0,
+			"Title":          "Test",
+			"Content":        "<p>test</p>",
+			"Summary":        "test summary",
+			"Category":       "test",
+			"Visibility":     "public",
+			"Author":         "tester",
+			"Tags":           []string{},
+			"DateStr":        "2025-01-01",
+			"Query":          "",
+			"FilterCategory": "",
+			"FilterScope":    "",
+			"FilterStatus":   "",
+			"Categories":     []string{},
+			"RelatedArticles":  []any{},
+			"RecentArticles":   []any{},
+		})
+		if err != nil {
+			t.Errorf("renderTemplate(%s) failed: %v", name, err)
+		}
+	}
+}
+
+// TestNoDirectLocationNavigation is a regression test for a class of bugs where
+// JS uses window.location.href or location.reload() for navigation/reload after
+// fetch-based operations. GoatFlow's SPA router does NOT intercept these, causing
+// the browser to hit the server directly and display raw JSON instead of HTML.
+//
+// The fix: all JS-initiated navigation must use <form>.submit() or <a>.click()
+// so the SPA router intercepts it. This test scans ALL rendered template output
+// AND the admin article edit form (built inline in handlers.go) for the banned
+// patterns.
+func TestNoDirectLocationNavigation(t *testing.T) {
+	if err := initTemplates(); err != nil {
+		t.Fatalf("initTemplates failed: %v", err)
+	}
+
+	ctx := map[string]any{
+		"IsAdmin": true, "IsAgent": false, "IsCustomer": false,
+		"articles": []any{}, "page": 1, "totalPages": 1, "totalCount": 0,
+		"Title": "T", "Content": "<p>t</p>", "Summary": "s", "Category": "c",
+		"Visibility": "public", "Author": "a", "Tags": []string{}, "DateStr": "2025-01-01",
+		"Query": "", "FilterCategory": "", "FilterScope": "", "FilterStatus": "",
+		"Categories": []string{}, "RelatedArticles": []any{}, "RecentArticles": []any{},
+	}
+	banned := []string{
+		"window.location.href",
+		"window.location.assign",
+		"window.location.replace",
+		"location.reload()",
+	}
+
+	// Check handlers.go inline JS (admin article edit form).
+	src, err := os.ReadFile("handlers.go")
+	if err != nil {
+		t.Logf("skipping handlers.go check: %v", err)
+	} else {
+		for _, pattern := range banned {
+			if strings.Contains(string(src), pattern) {
+				t.Errorf("handlers.go contains %q — this bypasses the SPA router. Use form.submit() or a.click() instead.", pattern)
+			}
+		}
+	}
+
+	for name := range compiledTemplates {
+		// Render with admin context (covers all {% if %} branches)
+		html, err := renderTemplate(name, ctx)
+		if err != nil {
+			t.Fatalf("renderTemplate(%s) failed: %v", name, err)
+		}
+		for _, pattern := range banned {
+			if strings.Contains(html, pattern) {
+				t.Errorf("%s contains %q — this bypasses the SPA router and returns raw JSON. "+
+					"Use form.submit() or a.click() instead.", name, pattern)
+			}
+		}
 	}
 }

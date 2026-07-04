@@ -6,6 +6,7 @@ description: Knowledge Base plugin with zinc search, OTRS FAQ import, and multi-
 author: GoatKit Team
 license: Apache-2.0
 homepage: https://github.com/goatkit/goat-kb
+icon: https://raw.githubusercontent.com/goatkit/goat-kb/main/icon.svg
 resources:
   memory_mb: 256
   call_timeout: 30s

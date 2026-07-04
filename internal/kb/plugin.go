@@ -33,6 +33,7 @@ func (p *Plugin) GKRegister() (*plugin.GKRegistration, error) {
 		Author:      "GoatKit Team",
 		License:     "Apache-2.0",
 		Homepage:    "https://github.com/goatkit/goat-kb",
+		Icon:        "https://raw.githubusercontent.com/goatkit/goat-kb/main/icon.svg",
 
 		MinHostVersion: "0.9.0",
 
@@ -86,13 +87,6 @@ func (p *Plugin) GKRegister() (*plugin.GKRegistration, error) {
 		},
 		{
 			Method:      "GET",
-			Path:        "/customer/kb/search",
-			Handler:     "handleCustomerSearch",
-			Middleware:  []string{"auth"},
-			Description: "Search KB articles for customers (public visibility only)",
-		},
-		{
-			Method:      "GET",
 			Path:        "/agent/kb",
 			Handler:     "handleAgentList",
 			Middleware:  []string{"auth"},
@@ -133,6 +127,27 @@ func (p *Plugin) GKRegister() (*plugin.GKRegistration, error) {
 				Middleware:  []string{"admin"},
 				Description: "Delete KB article for admin management",
 			},
+		{
+			Method:      "POST",
+			Path:        "/admin/kb/article/:id/attachments",
+			Handler:     "handleAttachmentUpload",
+			Middleware:  []string{"admin"},
+			Description: "Upload file attachment to KB article",
+		},
+		{
+			Method:      "DELETE",
+			Path:        "/admin/kb/article/:id/attachments/:aid",
+			Handler:     "handleAttachmentDelete",
+			Middleware:  []string{"admin"},
+			Description: "Delete KB article attachment",
+		},
+		{
+			Method:      "GET",
+			Path:        "/kb/attachment/:aid",
+			Handler:     "handleAttachmentDownload",
+			Middleware:  []string{"auth"},
+			Description: "Download KB article attachment (visibility-checked)",
+		},
 			{
 				Method:      "GET",
 				Path:        "/admin/kb/categories",
@@ -274,8 +289,12 @@ func (p *Plugin) Call(fn string, args json.RawMessage) (json.RawMessage, error) 
 		return p.handleAgentList(ctx, args)
 	case "handleAgentArticle":
 		return p.handleAgentArticle(ctx, args)
-	case "handleCustomerSearch":
-		return p.handleCustomerSearch(ctx, args)
+	case "handleAttachmentUpload":
+		return p.handleAttachmentUpload(ctx, args)
+	case "handleAttachmentDelete":
+		return p.handleAttachmentDelete(ctx, args)
+	case "handleAttachmentDownload":
+		return p.handleAttachmentDownload(ctx, args)
 	default:
 		return nil, fmt.Errorf("unknown function: %s", fn)
 	}

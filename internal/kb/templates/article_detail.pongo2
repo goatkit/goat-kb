@@ -1,0 +1,1111 @@
+<style>
+/* ── Layout shell ────────────────────────────── */
+#kb-section {
+  color: var(--gk-text-primary);
+  background-color: var(--gk-bg-base);
+  position: relative;
+  overflow: hidden;
+}
+
+.kb-grain::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.015;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px;
+}
+
+/* ── Outer shell ── */
+.kb-article-shell {
+  max-width: 90rem;
+  margin-inline: auto;
+  padding: 2.5rem 1.5rem 4rem;
+}
+
+/* ── Breadcrumb ── */
+.kb-breadcrumb {
+  font-size: 0.8rem;
+  margin-bottom: 2rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--gk-text-muted);
+}
+.kb-breadcrumb a {
+  color: var(--gk-text-muted);
+  text-decoration: none;
+  background-image: linear-gradient(var(--gk-primary), var(--gk-primary));
+  background-position: 0% 100%;
+  background-repeat: no-repeat;
+  background-size: 0% 1px;
+  transition: color 0.25s ease, background-size 0.3s ease;
+}
+.kb-breadcrumb a:hover {
+  color: var(--gk-primary);
+  background-size: 100% 1px;
+}
+.kb-breadcrumb-sep {
+  margin: 0 0.45em;
+  color: var(--gk-border-default);
+  font-weight: 300;
+  user-select: none;
+}
+
+/* ── Main + sidebar grid ── */
+.kb-article-wrapper {
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  gap: 2.5rem;
+  align-items: start;
+}
+
+/* ── Article accent block ── */
+.kb-article-block {
+  position: relative;
+  border-top: 1px solid var(--gk-primary);
+  padding-top: 0.75rem;
+  margin-left: 0.6rem;
+  animation: kbFadeUp 0.5s ease both;
+  min-width: 0;
+}
+.kb-article-block::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -1.2rem;
+  width: 2px;
+  height: calc(100%);
+  background: linear-gradient(
+    to bottom,
+    var(--gk-primary) 0%,
+    var(--gk-border-default) 60%,
+    transparent 100%
+  );
+}
+
+/* ── Title + summary ── */
+.kb-article-title {
+  font-size: clamp(1.6rem, 4vw + 0.3rem, 2.4rem);
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--gk-text-primary);
+  margin-bottom: 0.65rem;
+}
+.kb-article-summary {
+  font-size: 1.08rem;
+  font-style: italic;
+  color: var(--gk-text-secondary);
+  line-height: 1.6;
+  max-width: 60ch;
+}
+
+/* ── Meta bar ── */
+.kb-meta-bar {
+  margin-top: 1.75rem;
+  padding-bottom: 0.65rem;
+  border-bottom: 1px solid var(--gk-border-default);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.5rem 1rem;
+}
+.kb-meta-category {
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--gk-primary);
+  margin-right: auto;
+}
+.kb-meta-author,
+.kb-meta-date {
+  font-size: 0.8rem;
+  color: var(--gk-text-muted);
+}
+.kb-meta-author::before {
+  content: 'by';
+  margin-right: 0.3em;
+  font-style: italic;
+}
+
+/* ── Visibility badge (agent) ── */
+.kb-visibility-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.15rem 0.55rem;
+  border-radius: 9999px;
+  font-size: 0.78rem;
+  background: var(--gk-warning-subtle, #fef3c7);
+  color: var(--gk-warning, #d97706);
+  border: 1px solid var(--gk-primary);
+  white-space: nowrap;
+}
+.kb-visibility-badge svg {
+  flex-shrink: 0;
+}
+
+/* ── Tag pills (platform-consistent rounded-full) ── */
+.kb-tag-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  width: 100%;
+  margin-top: 0.35rem;
+}
+.kb-tag-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  font-size: 0.78rem;
+  background: var(--gk-primary-subtle);
+  color: var(--gk-primary);
+  border: 1px solid var(--gk-border-default);
+  white-space: nowrap;
+}
+
+/* ── Ornamental divider ── */
+.kb-divider {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 2rem;
+  margin-bottom: 1.5rem;
+}
+.kb-divider-line {
+  flex: 1;
+  height: 1px;
+  border: none;
+  background-color: var(--gk-border-default);
+}
+.kb-divider-orbament {
+  color: var(--gk-primary);
+  font-size: 0.8rem;
+  line-height: 1;
+  opacity: 0.45;
+  transform: rotate(45deg);
+}
+
+/* ── Content body ── */
+.kb-article-content {
+  font-size: 1rem;
+  line-height: 1.75;
+  color: var(--gk-text-primary);
+}
+.kb-article-content h2,
+.kb-article-content h3,
+.kb-article-content h4 {
+  font-weight: 600;
+  line-height: 1.35;
+  margin-top: 1.75rem;
+  color: var(--gk-text-primary);
+}
+.kb-article-content h2 { font-size: 1.4rem; }
+.kb-article-content h3 { font-size: 1.2rem; }
+.kb-article-content p { max-width: 60ch; }
+.kb-article-content pre {
+  background: var(--gk-bg-elevated);
+  border-radius: 6px;
+  padding: 0.85rem;
+  overflow-x: auto;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+.kb-article-content code {
+  background: var(--gk-bg-elevated);
+  border-radius: 3px;
+  padding: 0.1rem 0.3rem;
+  font-size: 0.85em;
+  color: var(--gk-primary);
+}
+.kb-article-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+}
+.kb-article-content th,
+.kb-article-content td {
+  padding: 0.45rem 0.65rem;
+  border-bottom: 1px solid var(--gk-border-default);
+}
+.kb-article-content th {
+  color: var(--gk-text-primary);
+  font-size: 0.9rem;
+}
+
+/* ── Admin CTA (agent) ── */
+.kb-admin-row {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 2.5rem;
+}
+.kb-admin-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 1rem;
+  border-radius: 9999px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--gk-primary);
+  background: transparent;
+  border: 1px solid var(--gk-primary);
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+.kb-admin-pill:hover {
+  background: var(--gk-primary-subtle);
+}
+.kb-admin-pill svg {
+  flex-shrink: 0;
+}
+
+/* ── Sidebar ── */
+.kb-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  position: sticky;
+  top: 2rem;
+}
+.kb-sidebar-section {
+  background: var(--gk-bg-surface);
+  border: 1px solid var(--gk-border-default);
+  border-radius: 10px;
+  padding: 1.25rem;
+}
+.kb-sidebar-heading {
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--gk-text-muted);
+  margin-bottom: 0.85rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid var(--gk-border-default);
+}
+.kb-sidebar-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.kb-sidebar-list li + li {
+  margin-top: 0.65rem;
+  padding-top: 0.65rem;
+  border-top: 1px solid var(--gk-border-default);
+}
+.kb-sidebar-list a {
+  display: block;
+  font-size: 0.88rem;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--gk-text-primary);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.kb-sidebar-list a:hover {
+  color: var(--gk-primary);
+}
+.kb-sidebar-date {
+  display: block;
+  font-size: 0.72rem;
+  color: var(--gk-text-muted);
+  margin-top: 0.15rem;
+}
+.kb-sidebar-empty {
+  font-size: 0.85rem;
+  color: var(--gk-text-muted);
+  font-style: italic;
+}
+
+/* ── Animation ── */
+@keyframes kbFadeUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Responsive ── */
+@media (max-width: 960px) {
+  .kb-article-wrapper {
+    grid-template-columns: 1fr;
+  }
+  .kb-sidebar {
+    display: none;
+  }
+}
+@media (max-width: 640px) {
+  .kb-article-shell { padding: 1.5rem 1rem 3rem; }
+  .kb-article-block { margin-left: 0.4rem; }
+  .kb-article-block::before { left: -0.9rem; }
+}
+/* ── Sidebar search ── */
+.kb-sidebar-search {
+  margin-bottom: 1rem;
+}
+.kb-search-input-wrap {
+  position: relative;
+}
+.kb-search-input-wrap .kb-search-icon {
+  position: absolute;
+  left: 0.65rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0.9rem;
+  height: 0.9rem;
+  color: var(--gk-text-muted);
+  pointer-events: none;
+  flex-shrink: 0;
+}
+.kb-search-input-wrap input {
+  width: 100%;
+  padding: 0.45rem 0.65rem 0.45rem 2rem;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--gk-text-primary);
+  background: var(--gk-bg-base);
+  border: 1px solid var(--gk-border-default);
+  border-radius: 6px;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.kb-search-input-wrap input:focus {
+  border-color: var(--gk-primary);
+  box-shadow: 0 0 0 2px var(--gk-primary-subtle);
+}
+.kb-search-input-wrap input::placeholder {
+  color: var(--gk-text-muted);
+}
+
+/* ── Mode toggle (segmented control) ── */
+.kb-search-mode-toggle {
+  display: flex;
+  margin-top: 0.6rem;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--gk-border-default);
+}
+.kb-search-mode-btn {
+  flex: 1;
+  padding: 0.3rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-align: center;
+  cursor: pointer;
+  border: none;
+  background: transparent;
+  color: var(--gk-text-muted);
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+.kb-search-mode-btn:not(:last-child) {
+  border-right: 1px solid var(--gk-border-default);
+}
+.kb-search-mode-btn.active {
+  background: var(--gk-primary);
+  color: #fff;
+}
+.kb-search-mode-btn:not(.active):hover {
+  background: var(--gk-bg-hover);
+  color: var(--gk-text-primary);
+}
+.kb-search-mode-btn:focus-visible {
+  outline: 2px solid var(--gk-primary);
+  outline-offset: -2px;
+}
+
+/* ── Hit navigation ── */
+.kb-hit-nav {
+  margin-top: 0.6rem;
+  padding: 0.45rem 0.65rem;
+  background: var(--gk-bg-elevated);
+  border-radius: 6px;
+  border: 1px solid var(--gk-border-default);
+}
+.kb-hit-info {
+  font-size: 0.75rem;
+  color: var(--gk-text-muted);
+  margin-bottom: 0.35rem;
+}
+.kb-hit-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+.kb-hit-nav-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 4px;
+  border: 1px solid var(--gk-border-default);
+  background: transparent;
+  color: var(--gk-text-secondary);
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  transition: all 0.15s ease;
+  padding: 0;
+}
+.kb-hit-nav-btn:hover {
+  background: var(--gk-bg-hover);
+  color: var(--gk-text-primary);
+  border-color: var(--gk-primary);
+}
+.kb-hit-nav-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+  pointer-events: none;
+}
+.kb-hit-pos {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--gk-text-primary);
+  min-width: 2.5rem;
+  text-align: center;
+}
+.kb-hit-clear-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--gk-text-muted);
+  cursor: pointer;
+  font-size: 0.72rem;
+  margin-left: auto;
+  transition: all 0.15s ease;
+}
+.kb-hit-clear-btn:hover {
+  color: var(--gk-error);
+  border-color: var(--gk-error);
+}
+
+/* ── Article content highlights ── */
+.kb-hit {
+  background: var(--gk-primary-subtle);
+  color: var(--gk-text-primary);
+  border-radius: 3px;
+  padding: 0 2px;
+  transition: background 0.2s ease;
+}
+.kb-hit-active {
+  background: color-mix(in srgb, var(--gk-primary) 28%, transparent);
+  color: var(--gk-text-primary);
+  outline: 2px solid var(--gk-primary);
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+
+/* ── Make sidebar scrollable on shorter viewports ── */
+.kb-sidebar {
+  max-height: calc(100vh - 6rem);
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.kb-sidebar::-webkit-scrollbar {
+  width: 4px;
+}
+.kb-sidebar::-webkit-scrollbar-thumb {
+  background: var(--gk-border-default);
+  border-radius: 2px;
+}
+/* ── Attachments (agents + customers) ── */
+.kb-attachments {
+  margin-top: 2.5rem;
+  animation: kbFadeUp 0.5s ease both;
+}
+.kb-attachments-heading {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--gk-text-primary);
+  margin-bottom: 1rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--gk-border-default);
+}
+.kb-attachments-clip {
+  width: 1.05rem;
+  height: 1.05rem;
+  color: var(--gk-primary);
+  flex-shrink: 0;
+}
+.kb-attachments-count {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--gk-text-muted);
+  background: var(--gk-bg-elevated);
+  border: 1px solid var(--gk-border-default);
+  border-radius: 9999px;
+  padding: 0.05rem 0.5rem;
+  line-height: 1.5;
+}
+.kb-attachments-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 0.75rem;
+}
+.kb-attachment-card {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.7rem 0.85rem;
+  background: var(--gk-bg-surface);
+  border: 1px solid var(--gk-border-default);
+  border-radius: 10px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+.kb-attachment-card:hover {
+  border-color: var(--gk-primary);
+  box-shadow: 0 0 0 1px var(--gk-primary-subtle), 0 4px 18px -10px var(--gk-primary);
+  transform: translateY(-1px);
+}
+.kb-attachment-icon {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: var(--gk-primary-subtle);
+  color: var(--gk-primary);
+}
+.kb-attachment-icon svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+.kb-attachment-info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.kb-attachment-filename {
+  display: inline-block;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--gk-text-primary);
+  background: none;
+  border: none;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+.kb-attachment-filename:hover {
+  color: var(--gk-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.kb-attachment-filename:focus-visible {
+  outline: 2px solid var(--gk-primary);
+  outline-offset: 2px;
+  border-radius: 3px;
+}
+.kb-attachment-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  font-size: 0.74rem;
+  color: var(--gk-text-muted);
+  flex-wrap: wrap;
+}
+.kb-attachment-size {
+  font-weight: 500;
+  color: var(--gk-text-secondary);
+}
+.kb-attachment-type {
+  font-family: var(--gk-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.7rem;
+  opacity: 0.85;
+}
+.kb-attachment-download {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border-radius: 6px;
+  border: 1px solid var(--gk-border-default);
+  background: transparent;
+  color: var(--gk-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.kb-attachment-download:hover {
+  background: var(--gk-primary-subtle);
+  color: var(--gk-primary);
+  border-color: var(--gk-primary);
+}
+.kb-attachment-download:focus-visible {
+  outline: 2px solid var(--gk-primary);
+  outline-offset: 2px;
+}
+.kb-attachment-download svg {
+  width: 0.95rem;
+  height: 0.95rem;
+}
+@media (max-width: 640px) {
+  .kb-attachments-list {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+
+<div id="kb-section" class="relative kb-grain">
+  <div class="kb-article-shell">
+
+    {# Breadcrumb #}
+    <nav class="kb-breadcrumb">
+      {% if IsAgent %}
+      <a href="/agent/kb">&#8592;</a>
+      {% else %}
+      <a href="/customer/kb">&#8592;</a>
+      {% endif %}
+      <span class="kb-breadcrumb-sep">&#8212;</span>
+      <span>{{ Title }}</span>
+    </nav>
+
+    {# Main + sidebar grid #}
+    <div class="kb-article-wrapper">
+
+      {# ── Main article ── #}
+      <div class="kb-article-block">
+
+        <h1 class="kb-article-title">{{ Title }}</h1>
+        {% if Summary %}
+        <p class="kb-article-summary">{{ Summary }}</p>
+        {% endif %}
+
+        {# Meta bar #}
+        <div class="kb-meta-bar">
+          <span class="kb-meta-category">{{ Category }}</span>
+          {% if IsAgent and Visibility %}
+          <span class="kb-visibility-badge">
+            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+            {% if Visibility == "public" %}{{ t("kb.users_agents")|default:"Users &amp; Agents" }}{% elif Visibility == "agent" %}{{ t("kb.agents_only")|default:"Agents Only" }}{% else %}{{ Visibility }}{% endif %}
+          </span>
+          {% endif %}
+          <span class="kb-meta-author">{{ Author }}</span>
+          <time class="kb-meta-date" datetime="{{ DateStr }}">{{ DateStr }}</time>
+        </div>
+
+        {# Tag chips #}
+        {% if Tags %}
+        <div class="kb-tag-pills">
+          {% for tag in Tags %}
+          <span class="kb-tag-pill">{{ tag }}</span>
+          {% endfor %}
+        </div>
+        {% endif %}
+
+        {# Ornamental divider #}
+        <div class="kb-divider">
+          <hr class="kb-divider-line">
+          <span class="kb-divider-orbament">&#9670;</span>
+          <hr class="kb-divider-line">
+        </div>
+
+        {# Body content #}
+        <div class="kb-article-content">{{ Content|safe }}</div>
+
+        {# Admin CTA — agent only #}
+        {% if IsAgent %}
+        <div class="kb-admin-row">
+          <a href="/admin/kb" class="kb-admin-pill">
+            <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+            {{ t("kb.manage_articles")|default:"Manage articles" }}
+          </a>
+        </div>
+        {% endif %}
+        {# Attachments — visible to agents and customers #}
+        {% if Attachments %}
+        <section class="kb-attachments" aria-label="{{ t("kb.attachments")|default:"Attachments" }}">
+          <h2 class="kb-attachments-heading">
+            <svg class="kb-attachments-clip" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 17.93 8.8l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            {{ t("kb.attachments")|default:"Attachments" }}
+            <span class="kb-attachments-count">{{ Attachments|length }}</span>
+          </h2>
+          <ul class="kb-attachments-list">
+            {% for att in Attachments %}
+            <li class="kb-attachment-card">
+              <span class="kb-attachment-icon" data-ct="{{ att.ContentType }}" data-id="{{ att.ID }}" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              </span>
+              <div class="kb-attachment-info">
+                <button type="button" class="kb-attachment-filename" onclick="kbDownloadAttachment({{ att.ID }})" title="{{ t("kb.download")|default:"Download" }} {{ att.Filename }}">{{ att.Filename }}</button>
+                <span class="kb-attachment-meta">
+                  <span class="kb-attachment-size">{{ att.SizeHuman }}</span>
+                  <span class="kb-attachment-type">{{ att.ContentType }}</span>
+                </span>
+              </div>
+              <button type="button" class="kb-attachment-download" onclick="kbDownloadAttachment({{ att.ID }})" title="{{ t("kb.download")|default:"Download" }} {{ att.Filename }}" aria-label="{{ t("kb.download")|default:"Download" }} {{ att.Filename }}">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </button>
+            </li>
+            {% endfor %}
+          </ul>
+        </section>
+        {% endif %}
+      </div>
+
+      {# ── Sidebar ── #}
+      <aside class="kb-sidebar">
+
+        {# ── Search ── #}
+        <div class="kb-sidebar-search">
+          <div class="kb-sidebar-section">
+            <h3 class="kb-sidebar-heading">{{ t("kb.search")|default:"Search" }}</h3>
+            <div class="kb-search-input-wrap">
+              <svg class="kb-search-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/>
+              </svg>
+              <input id="kb-article-search" type="text" placeholder="{{ t("kb.search_article_placeholder")|default:"Search this article…" }}" autocomplete="off">
+            </div>
+            <div class="kb-search-mode-toggle" role="group" aria-label="{{ t("kb.search_mode")|default:"Search mode" }}">
+              <button id="kb-mode-inpage" class="kb-search-mode-btn active" type="button">{{ t("kb.in_page")|default:"In Page" }}</button>
+              <button id="kb-mode-all" class="kb-search-mode-btn" type="button">{{ t("kb.all_articles")|default:"All Articles" }}</button>
+            </div>
+            <div id="kb-hit-container" class="kb-hit-nav" style="display:none;">
+              <div class="kb-hit-info">
+                <span id="kb-hit-count">0 {{ t("kb.matches")|default:"matches" }}</span>
+              </div>
+              <div class="kb-hit-controls">
+                <button id="kb-hit-prev" class="kb-hit-nav-btn" title="{{ t("kb.previous_match")|default:"Previous match" }} (&#8202;p&#8202;)" aria-label="{{ t("kb.previous_match")|default:"Previous match" }}">&#8249;</button>
+                <span id="kb-hit-pos" class="kb-hit-pos">1/1</span>
+                <button id="kb-hit-next" class="kb-hit-nav-btn" title="{{ t("kb.next_match")|default:"Next match" }} (&#8202;n&#8202;)" aria-label="{{ t("kb.next_match")|default:"Next match" }}">&#8250;</button>
+                <button id="kb-hit-clear" class="kb-hit-clear-btn" title="{{ t("kb.clear_search")|default:"Clear search" }}" aria-label="{{ t("kb.clear_search")|default:"Clear search" }}">{{ t("kb.clear")|default:"Clear" }}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% if RelatedArticles %}
+        <div class="kb-sidebar-section">
+          <h3 class="kb-sidebar-heading">{{ t("kb.related_articles")|default:"Related Articles" }}</h3>
+          {% if RelatedArticles|length == 0 %}
+          <p class="kb-sidebar-empty">{{ t("kb.none_yet")|default:"None yet." }}</p>
+          {% else %}
+          <ul class="kb-sidebar-list">
+            {% for ra in RelatedArticles %}
+            <li>
+              {% if IsAgent %}
+              <a href="/agent/kb/article/{{ ra.ID }}">{{ ra.Title }}</a>
+              {% else %}
+              <a href="/customer/kb/article/{{ ra.ID }}">{{ ra.Title }}</a>
+              {% endif %}
+              <span class="kb-sidebar-date">{{ ra.DateStr }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        {% if RecentArticles %}
+        <div class="kb-sidebar-section">
+          <h3 class="kb-sidebar-heading">{{ t("kb.recent_articles")|default:"Recent Articles" }}</h3>
+          {% if RecentArticles|length == 0 %}
+          <p class="kb-sidebar-empty">{{ t("kb.none_yet")|default:"None yet." }}</p>
+          {% else %}
+          <ul class="kb-sidebar-list">
+            {% for ra in RecentArticles %}
+            <li>
+              {% if IsAgent %}
+              <a href="/agent/kb/article/{{ ra.ID }}">{{ ra.Title }}</a>
+              {% else %}
+              <a href="/customer/kb/article/{{ ra.ID }}">{{ ra.Title }}</a>
+              {% endif %}
+              <span class="kb-sidebar-date">{{ ra.DateStr }}</span>
+            </li>
+            {% endfor %}
+          </ul>
+          {% endif %}
+        </div>
+        {% endif %}
+      </aside>
+
+<script>
+(function() {
+  var searchInput = document.getElementById('kb-article-search');
+  var modeInPage = document.getElementById('kb-mode-inpage');
+  var modeAll = document.getElementById('kb-mode-all');
+  var hitContainer = document.getElementById('kb-hit-container');
+  var hitCount = document.getElementById('kb-hit-count');
+  var hitPos = document.getElementById('kb-hit-pos');
+  var contentEl = document.querySelector('.kb-article-content');
+  var originalContent = null;
+  var currentHit = 0;
+  var totalHits = 0;
+
+  function highlightText(container, query) {
+    if (!query.trim()) return 0;
+    var escaped = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    var regex = new RegExp(escaped, 'gi');
+
+    // Collect text nodes first (avoid mutation-during-traversal)
+    var textNodes = [];
+    var walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) textNodes.push(walker.currentNode);
+
+    var total = 0;
+    for (var i = 0; i < textNodes.length; i++) {
+      var node = textNodes[i];
+      var text = node.textContent;
+      regex.lastIndex = 0;
+      if (!regex.test(text)) continue;
+      regex.lastIndex = 0;
+
+      var fragment = document.createDocumentFragment();
+      var lastIdx = 0;
+      var match;
+      while ((match = regex.exec(text)) !== null) {
+        // Text before match
+        if (match.index > lastIdx) {
+          fragment.appendChild(document.createTextNode(text.slice(lastIdx, match.index)));
+        }
+        // Highlighted match
+        var mark = document.createElement('mark');
+        mark.className = 'kb-hit';
+        mark.textContent = match[0];
+        fragment.appendChild(mark);
+        lastIdx = regex.lastIndex;
+        total++;
+      }
+      // Remaining text after last match
+      if (lastIdx < text.length) {
+        fragment.appendChild(document.createTextNode(text.slice(lastIdx)));
+      }
+      node.parentNode.replaceChild(fragment, node);
+    }
+    return total;
+  }
+
+  function doSearch() {
+    var query = searchInput.value.trim();
+    if (!query) { clearSearch(); return; }
+
+    var isInPage = modeInPage.classList.contains('active');
+
+    if (!isInPage) {
+      // "All articles" mode — submit via a hidden form so the SPA router
+      // intercepts the navigation (direct location assignment bypasses the SPA).
+      var base = window.location.pathname.startsWith('/agent') ? '/agent/kb' : '/customer/kb';
+      var form = document.createElement('form');
+      form.method = 'GET';
+      form.action = base;
+      var input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'q';
+      input.value = query;
+      form.appendChild(input);
+      document.body.appendChild(form);
+      form.submit();
+      return;
+    }
+
+    // "In page" mode — highlight matches
+    if (!originalContent) originalContent = contentEl.innerHTML;
+    else contentEl.innerHTML = originalContent;
+
+    totalHits = highlightText(contentEl, query);
+    currentHit = 0;
+
+    hitContainer.style.display = '';
+    if (totalHits > 0) {
+      hitCount.textContent = totalHits + ' match' + (totalHits !== 1 ? 'es' : '');
+      goToHit(0);
+    } else {
+      hitCount.textContent = '{{ t("kb.no_matches")|default:"No matches" }}';
+      hitPos.textContent = '';
+    }
+    searchInput.blur();
+  }
+
+  function goToHit(index) {
+    var hits = document.querySelectorAll('.kb-hit');
+    for (var i = 0; i < hits.length; i++) {
+      var h = hits[i];
+      if (i === index) {
+        h.classList.add('kb-hit-active');
+        h.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      } else {
+        h.classList.remove('kb-hit-active');
+      }
+    }
+    currentHit = index;
+    hitPos.textContent = (index + 1) + '/' + hits.length;
+  }
+
+  function nextHit() {
+    var hits = document.querySelectorAll('.kb-hit');
+    if (hits.length === 0) return;
+    var next = (currentHit + 1) % hits.length;
+    goToHit(next);
+  }
+
+  function prevHit() {
+    var hits = document.querySelectorAll('.kb-hit');
+    if (hits.length === 0) return;
+    var prev = (currentHit - 1 + hits.length) % hits.length;
+    goToHit(prev);
+  }
+
+  function clearSearch() {
+    searchInput.value = '';
+    if (originalContent) {
+      contentEl.innerHTML = originalContent;
+      originalContent = null;
+    }
+    hitContainer.style.display = 'none';
+    currentHit = 0;
+    totalHits = 0;
+  }
+
+  function setMode(mode) {
+    if (mode === 'inpage') {
+      modeInPage.classList.add('active');
+      modeAll.classList.remove('active');
+      searchInput.placeholder = '{{ t("kb.search_article_placeholder")|default:"Search this article…" }}';
+    } else {
+      modeAll.classList.add('active');
+      modeInPage.classList.remove('active');
+      searchInput.placeholder = '{{ t("kb.search_all_articles")|default:"Search all articles…" }}';
+    }
+  }
+
+  // Wire up events
+  searchInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      doSearch();
+    }
+  });
+
+  modeInPage.addEventListener('click', function() { setMode('inpage'); });
+  modeAll.addEventListener('click', function() { setMode('all'); });
+
+  document.getElementById('kb-hit-prev').addEventListener('click', prevHit);
+
+  // Keyboard shortcuts: n = next hit, p = prev hit
+  document.addEventListener('keydown', function(e) {
+    // Don't intercept typing in inputs/editable areas
+    var tag = e.target.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || e.target.isContentEditable) return;
+    if (hitContainer.style.display === 'none') return;
+    if (e.key === 'n') { e.preventDefault(); nextHit(); }
+    else if (e.key === 'p') { e.preventDefault(); prevHit(); }
+  });
+  document.getElementById('kb-hit-next').addEventListener('click', nextHit);
+  document.getElementById('kb-hit-clear').addEventListener('click', clearSearch);
+})();
+</script>
+<script>
+// KB article attachments — base64 → Blob download + file-type icons.
+// Top-level (non-IIFE) so inline onclick="kbDownloadAttachment(id)" can reach it.
+function kbBase64ToBlob(b64, contentType) {
+  var bin = window.atob(b64 || '');
+  var len = bin.length;
+  var bytes = new Uint8Array(len);
+  for (var i = 0; i < len; i++) { bytes[i] = bin.charCodeAt(i); }
+  return new Blob([bytes], { type: contentType || 'application/octet-stream' });
+}
+
+function kbDownloadAttachment(id) {
+  if (id === undefined || id === null || id === '') return;
+  fetch('/kb/attachment/' + encodeURIComponent(id))
+    .then(function (r) {
+      if (!r.ok) throw new Error('download failed: ' + r.status);
+      return r.json();
+    })
+    .then(function (d) {
+      var blob = kbBase64ToBlob(d.data, d.content_type);
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = d.filename || ('attachment-' + id);
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 2000);
+    })
+    .catch(function (err) { console.error('KB attachment download failed:', err); });
+}
+
+(function () {
+  // Lucide-style 24x24 stroke icons, picked client-side from the stored content type.
+  var ICONS = {
+    image:   '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="9" r="1.5"/><path d="M21 15l-5-5L5 21"/>',
+    archive: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="11" x2="12" y2="17"/><line x1="10" y1="13" x2="14" y2="13"/>',
+    audio:   '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+    video:   '<path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/>',
+    file:    '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>'
+  };
+
+  function classify(ct) {
+    ct = (ct || '').toLowerCase();
+    if (ct.indexOf('image/') === 0) return 'image';
+    if (ct.indexOf('audio/') === 0) return 'audio';
+    if (ct.indexOf('video/') === 0) return 'video';
+    if (ct.indexOf('zip') >= 0 || ct.indexOf('gzip') >= 0 || ct.indexOf('tar') >= 0 ||
+        ct.indexOf('rar') >= 0 || ct.indexOf('7z') >= 0 || ct.indexOf('compress') >= 0) return 'archive';
+    return 'file';
+  }
+
+  function svg(kind) {
+    return '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+           (ICONS[kind] || ICONS.file) + '</svg>';
+  }
+
+  function init() {
+    var nodes = document.querySelectorAll('.kb-attachment-icon[data-ct]');
+    for (var i = 0; i < nodes.length; i++) {
+      var node = nodes[i];
+      var ct = (node.getAttribute('data-ct') || '').toLowerCase();
+      node.innerHTML = svg(classify(ct));
+      // For images, fetch the attachment and show a real thumbnail.
+      // IIFE captures node+id to avoid closure-in-loop bug.
+      if (ct.indexOf('image/') === 0) {
+        (function(el, id) {
+          if (!id) return;
+          fetch('/kb/attachment/' + encodeURIComponent(id))
+            .then(function(r) { return r.ok ? r.json() : Promise.reject(r.status); })
+            .then(function(d) {
+              if (!d || !d.data) return;
+              var blob = kbBase64ToBlob(d.data, d.content_type);
+              var url = URL.createObjectURL(blob);
+              el.innerHTML = '<img src="' + url + '" alt="" style="width:100%;height:100%;object-fit:cover;border-radius:4px;">';
+            })
+            .catch(function() { /* keep SVG fallback icon */ });
+        })(node, node.getAttribute('data-id'));
+      }
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+})();
+</script>
+
+    </div>{# /.kb-article-wrapper #}
+  </div>{# /.kb-article-shell #}
+</div>{# /#kb-section #}

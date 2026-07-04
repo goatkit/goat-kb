@@ -2,6 +2,26 @@
 
 A multi-tenant knowledge base plugin for GoatFlow with article management, managed category taxonomy, tag chips, zinc full-text search, OTRS/Znuny FAQ import, and role-based access control (customer/agent/admin).
 
+![Screenshot of the article list](docs/images/kb_scr1.webp)
+
+### Features
+
+- **Multi-tenant RBAC** — every query is org-scoped; customers see public articles, agents see all, admins manage everything
+- **TipTap rich text editor** — WYSIWYG article authoring with bluemonday-sanitized HTML output
+- **Image paste/drop** — paste screenshots or drag-drop images into the editor. Images upload as attachments and render as `/kb/attachment/{id}` references (not bloated inline base64)
+- **Article attachments** — upload/download/delete files on any article with file-type SVG icons, image thumbnails, and automatic cleanup on article deletion
+- **Role-based templates** — unified `kb_list` and `article_detail` pongo2 templates render differently per audience (admin/agent/customer)
+- **Category taxonomy** — admin-managed CRUD with article counts; free-text fallback for legacy categories
+- **Tag chip input** — type, press comma/Enter, get removable pills; indexed in zinc for boosted search relevance
+- **In-page search** — TreeWalker-based text highlighting with `n`/`p` keyboard navigation, no `innerHTML.replace` XSS risk
+- **OTRS/Znuny FAQ import** — idempotent XML upsert via `(org_id, slug)` unique index
+- **Zinc full-text search** — optional integration with field-weighted queries (`title^3`, `summary^2`, `content`, `tags`)
+- **Security hardened** — stored XSS prevention, LIKE wildcard escaping, enum validation, DOM-safe tag chips, SPA-compatible navigation
+- **Full i18n** — all UI strings translated across 15 languages (`ar, de, en, es, fa, fr, he, ja, pl, pt, ru, tlh, uk, ur, zh`) via the `HostAPI.Translate` context-function pattern; templates use `{{ t("kb.key")|default:"English" }}`, identical syntax to GoatFlow host templates
+- **80+ tests** — including security regression, template rendering, SPA navigation, and schema migration suites
+
+![Screenshot of the article detail page](docs/images/kb_scr2.webp)
+
 ## Quick Start
 
 ```sh
@@ -45,6 +65,9 @@ Rendered via embedded pongo2 templates. Returned as `{"html": "..."}` fragments 
 | GET | `/admin/kb/article/:id` | `handleAdminArticle` | Admin — create/edit article with TipTap editor |
 | POST | `/admin/kb/article` | `handleAdminArticleUpdate` | Admin — save article (create or update) |
 | DELETE | `/admin/kb/article/:id` | `handleAdminArticleDelete` | Admin — delete article |
+| POST | `/admin/kb/article/:id/attachments` | `handleAttachmentUpload` | Admin — upload file attachment |
+| DELETE | `/admin/kb/article/:id/attachments/:aid` | `handleAttachmentDelete` | Admin — delete file attachment |
+| GET | `/kb/attachment/:aid` | `handleAttachmentDownload` | Auth — download/display attachment (visibility-checked) |
 | GET | `/admin/kb/categories` | `handleAdminCategories` | Admin — manage category taxonomy |
 | POST | `/admin/kb/categories` | `handleAdminCategories` | Admin — add/rename/delete categories |
 | POST | `/admin/kb/import` | `kb_import` | Admin — import OTRS FAQ XML |
@@ -52,14 +75,6 @@ Rendered via embedded pongo2 templates. Returned as `{"html": "..."}` fragments 
 | GET | `/agent/kb/article/:id` | `handleAgentArticle` | Agent — article detail |
 | GET | `/customer/kb` | `handleCustomerList` | Customer — article list (public only) |
 | GET | `/customer/kb/article/:id` | `handleCustomerArticle` | Customer — article detail |
-| GET | `/customer/kb/search` | `handleCustomerSearch` | Customer — search (public articles only) |
-
-### Dashboard Widget
-
-| ID | Location | Description |
-|----|----------|-------------|
-| `kb-recent` | `/dashboard` | Recent 5 published articles, role-filtered |
-
 ## Article Visibility
 
 All articles belong to an organisation (`org_id` is always set; no `org_id = 0`).  
@@ -128,7 +143,7 @@ Versioned migrations run from `InitWithHost` and tracked in `gk_kb_schema_versio
 |-------|---------|
 | `gk_kb_articles` | Core articles: `id`, `org_id`, `title`, `slug`, `summary`, `content`, `category`, `visibility`, `author`, `status`, `tags`, `source`, `source_id`, `created_at`, `updated_at`. Unique index on `(org_id, slug)`. Indexes on `(org_id, status)`, `(org_id, category)`, `(org_id, visibility)`. |
 | `gk_kb_categories` | Managed taxonomy: `id`, `org_id`, `name`, `parent_id`, `created_at`. Unique on `(org_id, name)`. |
-| `gk_kb_attachments` | File attachments: `id`, `org_id`, `article_id`, `file_key`, `filename`, `mime_type`, `size_bytes`, `created_at`. Bytes stored in HostAPI file storage. |
+| `gk_kb_attachments` | File attachments: `id`, `org_id`, `article_id`, `file_key`, `filename`, `content_type`, `size`, `created_at`. Bytes stored in HostAPI file storage (local disk or S3-compatible). Images uploaded via paste/drop become attachment rows and are referenced by `<img src="/kb/attachment/{id}">` in article content. Cleaned up automatically on article deletion. |
 | `gk_kb_schema_version` | Migration tracking: `version`, `applied_at`. |
 
 ## Build & Deploy
@@ -145,7 +160,6 @@ make deploy      # Upload to GoatFlow via API
 The plugin hot-reloads on deploy — GoatFlow unloads the old binary, extracts the new package, and the plugin starts serving immediately.
 
 ## Project Structure
-
 ```
 cmd/kb-plugin/          # Main entry point
 internal/kb/
@@ -156,23 +170,96 @@ internal/kb/
   zinc.go               # Zinc REST client
   import.go             # OTRS/Znuny FAQ XML import
   templates/*.pongo2    # Embedded page templates
-    admin_kb_categories.pongo2
-    agent_kb_article.pongo2
-    agent_kb_list.pongo2
-    customer_kb_article.pongo2
-    customer_kb_list.pongo2
-    customer_kb_search.pongo2
+    kb_list.pongo2           # Unified article list (admin/agent/customer)
+    article_detail.pongo2    # Article detail page (agent + customer)
+    admin_kb_categories.pongo2  # Category management
+    widget_recent.pongo2     # Dashboard recent-articles widget
 ```
 
 ## Security
 
-- All endpoints require authentication (session or token)
-- Cross-org IDOR protection: every query includes `org_id = ?`
-- Information disclosure prevention: 404 for "not found" vs 403 for "unauthorized" is not distinguished — unauthorised and non-existent articles return the same response
-- Admin write endpoints require `admin` middleware
-- Input sanitisation via `sanitiseText()` strips control characters (preserves tab/newline/cr)
-- No CSRF middleware in GoatFlow (documented) — admin writes use JSON Content-Type (preflight-requiring) + SameSite cookies
+### Authentication & Authorization
+
+- All endpoints require authentication (session or token) via middleware
+- Admin write endpoints (`/admin/kb/article`, `DELETE`, import, categories) require `admin` middleware
+- Agent/customer endpoints require `auth` middleware (no admin-level access)
+
+### Cross-Org Protection (IDOR)
+
+Every query includes `org_id = ?` to prevent cross-org data access. The `reqCtx.visibilityClause()` helper appends `AND visibility = 'public'` for customers while agents and admins see all articles in their org.
+
+Information disclosure prevention: 404 vs 403 is not distinguished — unauthorised and non-existent articles return the same response so attackers cannot probe for the existence of restricted content.
+
+### Stored XSS Prevention
+
+Article content is authored via TipTap (rich text editor) and rendered with `{{ Content|safe }}` in pongo2 templates — auto-escaping is intentionally bypassed because the content carries formatting HTML. To prevent XSS, all content is sanitized through **bluemonday** (v1.0.26) with a policy matching the GoatFlow host platform:
+
+- **Render-time sanitization**: `sanitiseHTML()` applied in `renderArticleDetail` before passing to the template — protects all viewers immediately, including existing articles
+- **Storage-time sanitization**: Applied in `handleAdminArticleUpdate` before INSERT/UPDATE — defense-in-depth
+
+**Allowed elements:** `b`, `strong`, `i`, `em`, `u`, `s`, `strike`, `del`, `h1`–`h6`, `p`, `br`, `hr`, `ul`, `ol`, `li`, `blockquote`, `code`, `pre`, `table`, `thead`, `tbody`, `tfoot`, `tr`, `th`, `td` (with `colspan`/`rowspan`), `img` (with `src`/`alt`/`title`/`width`/`height`, `http`/`https`/`data` URLs), `a` (with `href`, `http`/`https`/`mailto` URLs, `nofollow` + `noreferrer` + `target=_blank` applied).
+
+**Stripped:** `<script>`, `<iframe>`, `<object>`, `<embed>`, `<form>`, `<input>`, `<button>`, `<select>`, `<textarea>`, `<style>`, `<link>`, `<meta>`, `<base>`, all `on*` event handlers, `javascript:` URLs.
+
+**`class`** allowed on common elements (space-separated tokens only). **`style`** allowed on `span` and `mark` for color/highlight.
+
+### HTML Attribute Injection
+
+Fields rendered into `value="%s"` attributes use `html.EscapeString()` rather than `sanitiseText()` — the latter only strips control characters and does **not** escape `"`, `&`, or `<`, making it unsuitable for attribute contexts.
+
+### DOM XSS in Admin UI
+
+The admin article edit form uses inline JavaScript for tag chip management. Tag names are set via `document.createTextNode()` + `insertAdjacentHTML()` rather than `innerHTML` — preventing parsed HTML injection from tag names like `<img src=x onerror=alert(1)>`.
+
+### JavaScript String Injection
+
+The admin form embeds the session login as a JS string literal (`author: "..."`). All JavaScript-special characters are escaped: `\` → `\\`, `"` → `\"`, newlines → `\n`/`\r`, and `</` → `<\/` (prevents `</script>` tag breakout).
+
+### LIKE Wildcard Search Escaping
+
+Free-text search uses SQL `LIKE` with `%` wildcards. Search terms containing `%` or `_` are escaped via `escapeLike()` to prevent unintended broad matching:
+
+| Character | Escaped to | Reason |
+|-----------|------------|--------|
+| `\` | `\\` | Escape the escape character |
+| `%` | `\%` | Prevents wildcard matching any sequence |
+| `_` | `\_` | Prevents wildcard matching any single char |
+
+No explicit `ESCAPE` clause is needed — `\` is the default LIKE escape character in MySQL, MariaDB, and PostgreSQL (GoatFlow's supported databases).
+
+### CSRF
+
+Admin write endpoints accept `Content-Type: application/json` which triggers a CORS preflight on cross-origin requests, preventing form-based CSRF. No explicit CSRF token is needed — the preflight requirement is the mitigation.
+
+### Audit Logging
+
+Article deletion is logged via `p.host.Log` with structured fields (`org_id`, `user`, `user_id`, `article_id`, `title`) — visible in the host's operational logs.
+
+### Input Validation
+
+- All text fields: control characters stripped via `sanitiseText()`
+- Article content: HTML sanitized via `sanitiseHTML()` (bluemonday)
+- Article `Status` validated against `["draft", "published", "archived"]`
+- Article `Visibility` validated against `["public", "agent"]`
+- Pagination `PerPage` clamped to `[1, 100]`
+- Import payload limited to 4 MB
+- Article IDs validated as positive integers
+- Category names limited to 100 characters
+- Category names sanitized via `sanitiseText()` at storage time (add + rename)
 
 ## Configuration
 
 The plugin expects no mandatory configuration. Optional Zinc search is configured via env vars prefixed with `GOATFLOW_PLUGIN_KB_`. All database access goes through the HostAPI — no direct database connections.
+
+### Deployment Secrets
+
+Deployment credentials and runtime secrets are stored in the GoatFlow host's `.env` file (`../goatflow/.env`), never in the plugin repo or in code. The `make deploy` target reads these automatically:
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `ADMIN_API_KEY` | One of the two | Bearer token for plugin upload API |
+| `ADMIN_PASSWORD` | (alternative) | Password fallback — `make deploy` auto-logs in with `ADMIN_USER` to obtain a token |
+| `ADMIN_USER` | If using password | Login username for token exchange |
+| `GOATFLOW_URL` | No (default: `http://localhost:8080`) | Target GoatFlow instance |
+
+The `.env` file must **not** be committed to version control — it's in GoatFlow's `.gitignore`. The plugin itself stores no credentials; it inherits authentication from the host's session/middleware at runtime.

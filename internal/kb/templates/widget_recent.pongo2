@@ -1,5 +1,5 @@
 {% if articles|length == 0 %}
-<div class="p-4 text-center" style="color: var(--gk-text-muted);"><p class="text-sm">No recent articles.</p></div>
+<div class="p-4 text-center" style="color: var(--gk-text-muted);"><p class="text-sm">{{ t("kb.no_recent_articles")|default:"No recent articles." }}</p></div>
 {% else %}
 <div class="divide-y" style="border-color: var(--gk-border-default);">
 {% for a in articles %}

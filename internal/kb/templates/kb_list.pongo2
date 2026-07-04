@@ -1,0 +1,301 @@
+<style>
+#kb-section {
+  color: var(--gk-text-primary);
+  background-color: var(--gk-bg-base);
+  position: relative;
+  overflow: hidden;
+}
+
+/* Noise grain overlay — theme-agnostic decoration */
+.kb-grain::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.02;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px;
+}
+
+#kb-section h1, #kb-section h2, #kb-section h3 {
+  font-weight: 600;
+}
+
+/* ── Breadcrumb ── */
+.kb-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  margin-bottom: 1.5rem;
+}
+.kb-breadcrumb a {
+  color: var(--gk-primary);
+  text-decoration: none;
+  transition: opacity 0.2s ease;
+}
+.kb-breadcrumb a:hover { opacity: 0.8; }
+.kb-breadcrumb-sep {
+  margin: 0 0.45em;
+  color: var(--gk-border-default);
+  font-weight: 300;
+  user-select: none;
+}
+.kb-breadcrumb .current {
+  color: var(--gk-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.8rem;
+  font-weight: 400;
+}
+
+/* ── Search summary (truncated italic under title) ── */
+.kb-search-summary {
+  display: block;
+  font-size: 0.78rem;
+  font-style: italic;
+  line-height: 1.35;
+  color: var(--gk-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 48ch;
+  margin-top: 0.1rem;
+}
+</style>
+
+<div id="kb-section" class="relative kb-grain">
+<div class="container mx-auto py-6">
+
+  {# ── Breadcrumb ── #}
+  {% if IsAdmin %}
+  <nav class="flex items-center text-sm mb-4" aria-label="{{ t("kb.breadcrumb")|default:"Breadcrumb" }}">
+    <a href="/dashboard" class="gk-link-neon">{{ t("kb.dashboard")|default:"Dashboard" }}</a>
+    <svg class="mx-2 h-4 w-4" style="color: var(--gk-text-muted);" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg>
+    <span class="font-medium" style="color: var(--gk-text-primary);">{{ t("kb.knowledge_base")|default:"Knowledge Base" }}</span>
+  </nav>
+  {% else %}
+  <nav class="kb-breadcrumb">
+    <a href="/dashboard">&#8592;</a>
+    <span class="kb-breadcrumb-sep"></span>
+    <span class="current">{{ t("kb.all_articles")|default:"All Articles" }}</span>
+  </nav>
+  {% endif %}
+
+  {# ── Header ── #}
+  <div class="flex items-center justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold gk-heading"><span class="gk-text-gradient">{{ t("kb.knowledge_base")|default:"Knowledge Base" }}</span></h1>
+      {% if IsAdmin %}
+      <p class="mt-1 text-sm" style="color: var(--gk-text-muted);">{{ t("kb.organise_team_knowledge")|default:"Organise your team knowledge" }}</p>
+      {% else %}
+      <p class="mt-1 text-sm" style="color: var(--gk-text-muted);">{% if IsAgent %}{{ t("kb.manage_team")|default:"Manage your team" }}{% else %}{{ t("kb.find_answers")|default:"Find answers" }}{% endif %} {{ t("kb.and_support_articles")|default:"and support articles" }}</p>
+      {% endif %}
+    </div>
+    {% if IsAdmin %}
+    <a href="/admin/kb/article/new" class="gk-btn-neon">
+      <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+      {{ t("kb.new_article")|default:"New Article" }}
+    </a>
+    {% endif %}
+  </div>
+
+  {# ── Search/filter card ── #}
+  <div class="gk-card-glow mb-6">
+    <div class="gk-card-body">
+      <form action="/{% if IsAdmin %}admin{% elif IsAgent %}agent{% else %}customer{% endif %}/kb" method="GET" role="search">
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-end">
+          <div class="relative flex-1">
+            <div class="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+              <svg class="h-4 w-4" style="color: var(--gk-text-muted);" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.452 4.391l3.328 3.329a.75.75 0 11-1.06 1.06l-3.329-3.328A7 7 0 012 9z" clip-rule="evenodd"/>
+              </svg>
+            </div>
+            <input type="text" name="q" value="{{ Query }}" placeholder="{{ t("kb.search_placeholder")|default:"Search articles…" }}" class="gk-input-neon pl-10 w-full">
+          </div>
+          <button type="submit" class="gk-btn-neon w-auto">{{ t("kb.apply_filters")|default:"Apply Filters" }}</button>
+          <a href="/{% if IsAdmin %}admin{% elif IsAgent %}agent{% else %}customer{% endif %}/kb" class="gk-btn-secondary">{{ t("kb.clear")|default:"Clear" }}</a>
+        </div>
+        <div class="grid grid-cols-1 gap-4 {% if IsCustomer %}sm:grid-cols-1{% else %}sm:grid-cols-3{% endif %} mt-4">
+          {# Category dropdown — all audiences #}
+          <div>
+            <label for="list-cat-filter" class="gk-form-label">{{ t("kb.category")|default:"Category" }}</label>
+            <select id="list-cat-filter" name="category" class="gk-input-neon mt-1">
+              <option value="">{{ t("kb.all_categories")|default:"All Categories" }}</option>
+              {% for cat in Categories %}
+              <option value="{{ cat }}"{% if cat == FilterCategory %} selected{% endif %}>{{ cat }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          {# Scope + Status — admin and agent only #}
+          {% if not IsCustomer %}
+          <div>
+            <label for="list-scope-filter" class="gk-form-label">{{ t("kb.scope")|default:"Scope" }}</label>
+            <select id="list-scope-filter" name="scope" class="gk-input-neon mt-1">
+              <option value="">{{ t("kb.all")|default:"All" }}</option>
+              <option value="public"{% if FilterScope == "public" %} selected{% endif %}>{{ t("kb.users_agents")|default:"Users &amp; Agents" }}</option>
+              <option value="agent"{% if FilterScope == "agent" %} selected{% endif %}>{{ t("kb.agents_only")|default:"Agents Only" }}</option>
+            </select>
+          </div>
+          <div>
+            <label for="list-status-filter" class="gk-form-label">{{ t("kb.status")|default:"Status" }}</label>
+            <select id="list-status-filter" name="status" class="gk-input-neon mt-1">
+              <option value="">{{ t("kb.all")|default:"All" }}</option>
+              <option value="published"{% if FilterStatus == "published" %} selected{% endif %}>{{ t("kb.published")|default:"Published" }}</option>
+              <option value="draft"{% if FilterStatus == "draft" %} selected{% endif %}>{{ t("kb.draft")|default:"Draft" }}</option>
+              {% if IsAdmin %}<option value="archived"{% if FilterStatus == "archived" %} selected{% endif %}>{{ t("kb.archived")|default:"Archived" }}</option>{% endif %}
+            </select>
+          </div>
+          {% endif %}
+        </div>
+      </form>
+    </div>
+  </div>
+
+  {# ── Active filter pills ── #}
+  {% if Query or FilterCategory or (not IsCustomer and (FilterScope or FilterStatus)) %}
+  <div class="flex flex-wrap gap-2 mb-4 items-center">
+    <span class="text-xs font-medium uppercase tracking-wider" style="color: var(--gk-text-muted);">{{ t("kb.active_filters")|default:"Active filters:" }}</span>
+    {% if Query %}
+    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium" style="background: var(--gk-bg-elevated); color: var(--gk-primary);">
+      "{{ Query }}"
+      <a href="/{% if IsAdmin %}admin{% elif IsAgent %}agent{% else %}customer{% endif %}/kb?{% if FilterCategory %}category={{ FilterCategory|urlencode }}{% endif %}{% if not IsCustomer and FilterScope %}&amp;scope={{ FilterScope|urlencode }}{% endif %}{% if not IsCustomer and FilterStatus %}&amp;status={{ FilterStatus|urlencode }}{% endif %}" class="ml-1 hover:opacity-60" aria-label="{{ t("kb.remove_search")|default:"Remove search" }}">&#x2715;</a>
+    </span>
+    {% endif %}
+    {% if FilterCategory %}
+    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium" style="background: var(--gk-bg-elevated); color: var(--gk-text-secondary);">
+      {{ FilterCategory }}
+      <a href="/{% if IsAdmin %}admin{% elif IsAgent %}agent{% else %}customer{% endif %}/kb?{% if Query %}q={{ Query|urlencode }}{% endif %}{% if not IsCustomer and FilterScope %}&amp;scope={{ FilterScope|urlencode }}{% endif %}{% if not IsCustomer and FilterStatus %}&amp;status={{ FilterStatus|urlencode }}{% endif %}" class="ml-1 hover:opacity-60" aria-label="{{ t("kb.remove_category")|default:"Remove category" }}">&#x2715;</a>
+    </span>
+    {% endif %}
+    {% if not IsCustomer and FilterScope %}
+    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium" style="background: var(--gk-bg-elevated); color: var(--gk-text-secondary);">
+      {{ FilterScope }}
+      <a href="/{% if IsAdmin %}admin{% elif IsAgent %}agent{% else %}customer{% endif %}/kb?{% if Query %}q={{ Query|urlencode }}{% endif %}{% if FilterCategory %}category={{ FilterCategory|urlencode }}{% endif %}{% if not IsCustomer and FilterStatus %}&amp;status={{ FilterStatus|urlencode }}{% endif %}" class="ml-1 hover:opacity-60" aria-label="{{ t("kb.remove_scope")|default:"Remove scope" }}">&#x2715;</a>
+    </span>
+    {% endif %}
+    {% if not IsCustomer and FilterStatus %}
+    <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium" style="background: var(--gk-bg-elevated); color: var(--gk-text-secondary);">
+      {{ FilterStatus }}
+      <a href="/{% if IsAdmin %}admin{% elif IsAgent %}agent{% else %}customer{% endif %}/kb?{% if Query %}q={{ Query|urlencode }}{% endif %}{% if FilterCategory %}category={{ FilterCategory|urlencode }}{% endif %}{% if not IsCustomer and FilterScope %}&amp;scope={{ FilterScope|urlencode }}{% endif %}" class="ml-1 hover:opacity-60" aria-label="{{ t("kb.remove_status")|default:"Remove status" }}">&#x2715;</a>
+    </span>
+    {% endif %}
+  </div>
+  {% endif %}
+
+  {# ── Results — empty state or table ── #}
+  {% if articles|length == 0 %}
+  <div class="gk-card-glow">
+    <div class="gk-card-body p-12 text-center">
+      <svg class="h-12 w-12 mx-auto mb-4" style="color: var(--gk-text-muted);" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+      <p class="text-lg font-medium" style="color: var(--gk-text-primary);">{{ t("kb.no_articles")|default:"No articles yet" }}</p>
+      <p class="mt-1 text-sm" style="color: var(--gk-text-muted);">{% if IsAdmin %}{{ t("kb.create_first_article")|default:"Click \"New Article\" to create your first KB article." }}{% else %}{{ t("kb.articles_will_appear")|default:"Articles will appear here once published." }}{% endif %}</p>
+    </div>
+  </div>
+  {% else %}
+  <div class="gk-card-glow">
+    <div class="gk-card-body p-0">
+      <div class="overflow-x-auto">
+        <table class="gk-table w-full">
+          <thead>
+            <tr style="background: var(--gk-bg-elevated); border-bottom: 1px solid var(--gk-border-default);">
+              <th class="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-semibold uppercase tracking-wider" style="color: var(--gk-text-muted);">{{ t("kb.title")|default:"Title" }}</th>
+              <th class="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-semibold uppercase tracking-wider" style="color: var(--gk-text-muted);">{{ t("kb.category")|default:"Category" }}</th>
+              {% if not IsCustomer %}
+              <th class="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-semibold uppercase tracking-wider hidden md:table-cell" style="color: var(--gk-text-muted);">{{ t("kb.scope")|default:"Scope" }}</th>
+              <th class="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-semibold uppercase tracking-wider" style="color: var(--gk-text-muted);">{{ t("kb.status")|default:"Status" }}</th>
+              {% endif %}
+              {% if IsAdmin or IsAgent %}
+              <th class="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-semibold uppercase tracking-wider hidden md:table-cell" style="color: var(--gk-text-muted);">{{ t("kb.author")|default:"Author" }}</th>
+              {% endif %}
+              <th class="px-3 py-2 md:px-6 md:py-3 text-left text-xs font-semibold uppercase tracking-wider" style="color: var(--gk-text-muted);">{% if IsCustomer %}{{ t("kb.date")|default:"Date" }}{% else %}{{ t("kb.updated")|default:"Updated" }}{% endif %}</th>
+              {% if IsAdmin %}
+              <th class="px-3 py-2 md:px-6 md:py-3 text-right text-xs font-semibold uppercase tracking-wider" style="color: var(--gk-text-muted);">{{ t("kb.actions")|default:"Actions" }}</th>
+              {% endif %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for a in articles %}
+            <tr style="border-bottom: 1px solid var(--gk-border-default);" class="hover:bg-[var(--gk-bg-hover)] transition-colors">
+              <td class="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap">
+                <a href="/{% if IsAdmin %}admin{% elif IsAgent %}agent{% else %}customer{% endif %}/kb/article/{{ a.ID }}" class="text-sm font-medium gk-link-neon">{{ a.Title }}</a>
+                {% if a.Summary %}<span class="kb-search-summary">{{ a.Summary }}</span>{% endif %}
+              </td>
+              <td class="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-sm" style="color: var(--gk-text-secondary);">{{ a.Category }}</td>
+              {% if not IsCustomer %}
+              <td class="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap hidden md:table-cell">
+                {% if a.Visibility == "public" %}
+                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style="background: var(--gk-success-subtle); color: var(--gk-success);">{{ t("kb.users_agents")|default:"Users &amp; Agents" }}</span>
+                {% elif a.Visibility == "agent" %}
+                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style="background: var(--gk-warning-subtle); color: var(--gk-warning);">{{ t("kb.agents_only")|default:"Agents Only" }}</span>
+                {% else %}
+                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style="background: var(--gk-bg-elevated); color: var(--gk-text-secondary);">{{ a.Visibility }}</span>
+                {% endif %}
+              </td>
+              <td class="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap">
+                {% if a.Status == "published" %}
+                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style="background: var(--gk-success-subtle); color: var(--gk-success);">{{ t("kb.published")|default:"Published" }}</span>
+                {% elif a.Status == "draft" %}
+                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style="background: var(--gk-warning-subtle); color: var(--gk-warning);">{{ t("kb.draft")|default:"Draft" }}</span>
+                {% elif a.Status == "archived" %}
+                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style="background: var(--gk-bg-elevated); color: var(--gk-text-muted);">{{ t("kb.archived")|default:"Archived" }}</span>
+                {% else %}
+                <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full" style="background: var(--gk-bg-elevated); color: var(--gk-text-secondary);">{{ a.Status }}</span>
+                {% endif %}
+              </td>
+              {% endif %}
+              {% if IsAdmin or IsAgent %}
+              <td class="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-sm hidden md:table-cell" style="color: var(--gk-text-secondary);">{{ a.Author }}</td>
+              {% endif %}
+              <td class="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-sm" style="color: var(--gk-text-muted);">{{ a.DateStr }}</td>
+              {% if IsAdmin %}
+              <td class="px-3 py-2 md:px-6 md:py-4 whitespace-nowrap text-right text-sm font-medium">
+                <a href="/admin/kb/article/{{ a.ID }}" class="gk-link-neon mr-3">{{ t("kb.edit")|default:"Edit" }}</a>
+                <button onclick="kbDeleteArticle({{ a.ID }})" style="color: var(--gk-error);" class="hover:opacity-80 transition-opacity">{{ t("kb.delete")|default:"Delete" }}</button>
+              </td>
+              {% endif %}
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Pagination ── #}
+  {% if totalPages > 1 %}
+  <div class="flex items-center justify-between mt-4 px-1">
+    <div class="text-sm" style="color: var(--gk-text-muted);">{{ t("kb.page")|default:"Page" }} {{ page }} {{ t("kb.of")|default:"of" }} {{ totalPages }} ({{ totalCount }} {{ t("kb.articles_count")|default:"articles" }})</div>
+    <div class="flex space-x-2">
+      <a href="/{% if IsAdmin %}admin{% elif IsAgent %}agent{% else %}customer{% endif %}/kb?page={{ page - 1 }}&amp;q={{ Query|urlencode }}&amp;category={{ FilterCategory|urlencode }}&amp;scope={{ FilterScope|urlencode }}&amp;status={{ FilterStatus|urlencode }}" class="gk-btn-secondary px-4 py-2 text-sm inline-flex items-center {% if page <= 1 %}opacity-50 pointer-events-none{% endif %}">{{ t("kb.prev")|default:"Prev" }}</a>
+      <a href="/{% if IsAdmin %}admin{% elif IsAgent %}agent{% else %}customer{% endif %}/kb?page={{ page + 1 }}&amp;q={{ Query|urlencode }}&amp;category={{ FilterCategory|urlencode }}&amp;scope={{ FilterScope|urlencode }}&amp;status={{ FilterStatus|urlencode }}" class="gk-btn-secondary px-4 py-2 text-sm inline-flex items-center {% if page >= totalPages %}opacity-50 pointer-events-none{% endif %}">{{ t("kb.next")|default:"Next" }}</a>
+    </div>
+  </div>
+  {% endif %}
+
+  {# ── Admin link (agent-only) ── #}
+  {% if IsAgent %}
+  <div class="flex justify-end mt-8">
+    <a href="/admin/kb" class="kb-admin-pill" style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.45rem 1rem;border-radius:9999px;font-size:0.85rem;font-weight:500;color:var(--gk-primary);background:transparent;border:1px solid var(--gk-primary);text-decoration:none;transition:all 0.2s ease;">
+      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      {{ t("kb.manage_articles")|default:"Manage articles" }}
+    </a>
+  </div>
+  {% endif %}
+
+  {# ── Admin delete JS (injected only when admin) ── #}
+  {% if IsAdmin %}
+  <script>
+  function kbDeleteArticle(id) {
+    if (!confirm("{{ t("kb.delete_confirm")|default:"Delete this article?" }}")) return;
+    fetch("/admin/kb/article/" + id, { method: "DELETE" })
+      .then(function(r) { return r.json(); })
+      .then(function() { var a=document.createElement('a'); a.href=window.location.pathname+window.location.search; document.body.appendChild(a); a.click(); a.remove(); })
+      .catch(function(err) { alert("{{ t("kb.delete_failed")|default:"Delete failed: " }}" + err); });
+  }
+  </script>
+  {% endif %}
+
+</div>{# /.container #}
+</div>{# /#kb-section #}
