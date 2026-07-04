@@ -241,7 +241,7 @@ var migrations = map[int][]dialectTemplate{
 		// Normalise visibility: "org" was identical to "agent" (same RBAC check)
 		// but confusing. Migrate existing org rows to agent, then remove the
 		// unused value from the UI dropdown.
-		{mysql: `UPDATE IGNORE gk_kb_articles SET visibility = 'agent' WHERE visibility = 'org'`,
+		{mysql: `UPDATE gk_kb_articles SET visibility = 'agent' WHERE visibility = 'org'`,
 			postgres: `UPDATE gk_kb_articles SET visibility = 'agent' WHERE visibility = 'org'`},
 	},
 }

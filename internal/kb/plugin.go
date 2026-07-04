@@ -86,13 +86,6 @@ func (p *Plugin) GKRegister() (*plugin.GKRegistration, error) {
 		},
 		{
 			Method:      "GET",
-			Path:        "/customer/kb/search",
-			Handler:     "handleCustomerSearch",
-			Middleware:  []string{"auth"},
-			Description: "Search KB articles for customers (public visibility only)",
-		},
-		{
-			Method:      "GET",
 			Path:        "/agent/kb",
 			Handler:     "handleAgentList",
 			Middleware:  []string{"auth"},
@@ -274,8 +267,6 @@ func (p *Plugin) Call(fn string, args json.RawMessage) (json.RawMessage, error) 
 		return p.handleAgentList(ctx, args)
 	case "handleAgentArticle":
 		return p.handleAgentArticle(ctx, args)
-	case "handleCustomerSearch":
-		return p.handleCustomerSearch(ctx, args)
 	default:
 		return nil, fmt.Errorf("unknown function: %s", fn)
 	}

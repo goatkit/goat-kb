@@ -1,4 +1,4 @@
-.PHONY: build clean test package deploy help test-integration
+.PHONY: build clean test package deploy help test-integration trivy-scan
 
 GOATFLOW_DIR := $(shell realpath ../goatflow 2>/dev/null || echo ../goatflow)
 -include $(GOATFLOW_DIR)/.env
@@ -29,14 +29,15 @@ clean:
 	@rm -rf $(BUILD_DIR)
 
 test:
-	docker run --rm \
+	@echo "Running tests..."
+	@docker run --rm \
 		-u "$$(id -u):$$(id -g)" \
 		-v "$(CURDIR)":/src \
 		-v "$(GOATFLOW_DIR)":/goatflow \
 		-w /src \
 		-e GOCACHE=/tmp/gocache \
 		-e GOMODCACHE=/tmp/gomod \
-		$(GO_IMAGE) sh -c "go test -buildvcs=false ./..."
+		$(GO_IMAGE) sh -c "go test -buildvcs=false -v -count=1 ./..."
 
 package: build
 	@echo "Packaging $(BINARY) $(VERSION)..."
@@ -71,6 +72,7 @@ help:
 	@echo "  make package                 Build and ZIP plugin.yaml + binary"
 	@echo "  make deploy                  Package and upload via GoatFlow API"
 	@echo "  make deploy GOATFLOW_URL=..  Deploy to a specific GoatFlow instance"
+	@echo "  make trivy-scan              Scan for vulnerabilities, secrets, misconfigs"
 
 test-integration: package
 	@echo "🚀  Starting integration test..."
@@ -84,3 +86,15 @@ test-integration: package
 		-e GOATFLOW_URL="$(GOATFLOW_URL)" \
 		-e GOCACHE=/tmp/gocache \
 		$(GO_IMAGE) sh -c "go test -tags=integration -v ./internal/kb -run TestKBPluginIntegration"
+
+trivy-scan:
+	@echo "🔍 Running Trivy security scan..."
+	@docker run --rm \
+		-v "$(CURDIR)":/workspace \
+		-v goatflow_cache:/cache \
+		-e TRIVY_CACHE_DIR=/cache/trivy \
+		-w /workspace \
+		aquasec/trivy:latest \
+		fs --scanners vuln,secret,misconfig . \
+		--skip-dirs .git,bin \
+		--severity HIGH,CRITICAL
