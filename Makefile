@@ -1,4 +1,4 @@
-.PHONY: build clean test package deploy help test-integration trivy-scan
+.PHONY: build clean test lint package deploy help test-integration trivy-scan
 
 GOATFLOW_DIR := $(shell realpath ../goatflow 2>/dev/null || echo ../goatflow)
 -include $(GOATFLOW_DIR)/.env
@@ -39,6 +39,19 @@ test:
 		-e GOCACHE=/tmp/gocache \
 		-e GOMODCACHE=/tmp/gomod \
 		$(GO_IMAGE) sh -c "go test -buildvcs=false -v -count=1 ./..."
+
+## lint: Enforce database-agnostic SQL (MySQL + PostgreSQL) via gk-sql-lint
+lint:
+	@echo "🔍  Linting SQL portability (gk-sql-lint)..."
+	@docker run --rm \
+		-u "$$(id -u):$$(id -g)" \
+		-v "$(CURDIR)":/src \
+		-w /src \
+		-e GOCACHE=/src/.gocache \
+		-e GOMODCACHE=/src/.gomod \
+		-e GOTMPDIR=/src/.tmp \
+		-e HOME=/tmp \
+		$(GO_IMAGE) sh -c "mkdir -p /src/.gocache /src/.gomod /src/.tmp && go run github.com/goatkit/sql-lint@v0.1.2 /src"
 
 package: build
 	@echo "Packaging $(BINARY) $(VERSION)..."
@@ -98,6 +111,7 @@ help:
 	@echo "Usage:"
 	@echo "  make build                   Build the gRPC plugin binary"
 	@echo "  make test                    Run plugin tests"
+	@echo "  make lint                    Enforce DB-agnostic SQL (gk-sql-lint)"
 	@echo "  make package                 Build and ZIP plugin.yaml + binary"
 	@echo "  make sign KEY=<hex>          Package and sign with ed25519"
 	@echo "  make keygen                  Generate a new ed25519 signing key pair"

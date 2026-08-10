@@ -4,6 +4,21 @@ All notable changes to the GoatFlow Knowledge Base plugin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [0.1.1] - 2026-08-10
+
+### Added
+
+- **DB-agnostic SQL enforcement** — new `make lint` target runs `gk-sql-lint`
+  (`github.com/goatkit/sql-lint`), keeping plugin SQL portable across
+  MySQL/MariaDB and PostgreSQL. The plugin's HostAPI queries are already
+  placeholder-safe at runtime; the lint now also guards against accidental raw
+  non-portable SQL and MySQL-only statements (ON DUPLICATE KEY UPDATE /
+  INSERT IGNORE / REPLACE INTO) as CI-enforced defense in depth.
+
+### Changed
+
+- Plugin version bumped to v0.1.1 (tagged release).
+
 ## [0.1.0] - 2026-07-04
 
 First release. Production-ready knowledge base plugin with multi-tenant RBAC, zinc full-text search, OTRS FAQ import, and comprehensive security hardening.
