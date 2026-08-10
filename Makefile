@@ -22,9 +22,10 @@ build:
 		-v "$(CURDIR)":/src \
 		-v "$(GOATFLOW_DIR)":/goatflow \
 		-w /src \
-		-e GOCACHE=/tmp/gocache \
-		-e GOMODCACHE=/tmp/gomod \
-		$(GO_IMAGE) sh -c "go mod download && go build -buildvcs=false -ldflags='$(LDFLAGS)' -o $(BUILD_DIR)/$(PLUGIN_BINARY) $(CMD_DIR)"
+		-e GOCACHE=/src/.gocache \
+		-e GOMODCACHE=/src/.gomod \
+		-e GOTMPDIR=/src/.tmp \
+		$(GO_IMAGE) sh -c "mkdir -p /src/.gocache /src/.gomod /src/.tmp && go mod download && go build -buildvcs=false -ldflags='$(LDFLAGS)' -o $(BUILD_DIR)/$(PLUGIN_BINARY) $(CMD_DIR)"
 
 clean:
 	@rm -rf $(BUILD_DIR)
@@ -36,9 +37,10 @@ test:
 		-v "$(CURDIR)":/src \
 		-v "$(GOATFLOW_DIR)":/goatflow \
 		-w /src \
-		-e GOCACHE=/tmp/gocache \
-		-e GOMODCACHE=/tmp/gomod \
-		$(GO_IMAGE) sh -c "go test -buildvcs=false -v -count=1 ./..."
+		-e GOCACHE=/src/.gocache \
+		-e GOMODCACHE=/src/.gomod \
+		-e GOTMPDIR=/src/.tmp \
+		$(GO_IMAGE) sh -c "mkdir -p /src/.gocache /src/.gomod /src/.tmp && go test -buildvcs=false -v -count=1 ./..."
 
 ## lint: Enforce database-agnostic SQL (MySQL + PostgreSQL) via gk-sql-lint
 lint:
@@ -73,20 +75,20 @@ sign: package
 		-v "$(CURDIR)":/src \
 		-v "$(GOATFLOW_DIR)":/goatflow \
 		-w /goatflow \
-		-e GOCACHE=/tmp/gocache \
-		-e GOMODCACHE=/tmp/gomod \
-		$(GO_IMAGE) \
-		go run ./cmd/gk sign /src/$(BUILD_DIR)/$(PACKAGE_NAME).zip --key $$KEY
+		-e GOCACHE=/src/.gocache \
+		-e GOMODCACHE=/src/.gomod \
+		-e GOTMPDIR=/src/.tmp \
+		$(GO_IMAGE) sh -c "mkdir -p /src/.gocache /src/.gomod /src/.tmp && go run ./cmd/gk sign /src/$(BUILD_DIR)/$(PACKAGE_NAME).zip --key $$KEY"
 
 ## keygen: Generate a new ed25519 signing key pair
 keygen:
 	@docker run --rm \
 		-v "$(GOATFLOW_DIR)":/goatflow \
 		-w /goatflow \
-		-e GOCACHE=/tmp/gocache \
-		-e GOMODCACHE=/tmp/gomod \
-		$(GO_IMAGE) \
-		go run ./cmd/gk keys generate
+		-e GOCACHE=/src/.gocache \
+		-e GOMODCACHE=/src/.gomod \
+		-e GOTMPDIR=/src/.tmp \
+		$(GO_IMAGE) sh -c "mkdir -p /src/.gocache /src/.gomod /src/.tmp && go run ./cmd/gk keys generate"
 
 deploy: package
 	@test -n "$(ADMIN_API_KEY)$(ADMIN_PASSWORD)" || { echo "ERROR: ADMIN_API_KEY or ADMIN_PASSWORD missing from $(GOATFLOW_DIR)/.env"; exit 1; }
@@ -128,8 +130,8 @@ test-integration: package
 		--env-file "$(GOATFLOW_DIR)/.env" \
 		-w /src \
 		-e GOATFLOW_URL="$(GOATFLOW_URL)" \
-		-e GOCACHE=/tmp/gocache \
-		$(GO_IMAGE) sh -c "go test -tags=integration -v ./internal/kb -run TestKBPluginIntegration"
+		-e GOCACHE=/src/.gocache \
+		$(GO_IMAGE) sh -c "mkdir -p /src/.gocache && go test -tags=integration -v ./internal/kb -run TestKBPluginIntegration"
 
 trivy-scan:
 	@echo "🔍 Running Trivy security scan..."
