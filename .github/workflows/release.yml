@@ -1,0 +1,45 @@
+name: Release Plugin
+
+on:
+  push:
+    tags: ['v*']
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout goat-kb
+        uses: actions/checkout@v4
+        with:
+          path: goat-kb
+
+      # Build/sign reproduce the local Makefile which mounts ../goatflow for the
+      # go.mod replace directive and the `gk` CLI (cmd/gk). Check it out as a
+      # sibling so `realpath ../goatflow` resolves inside the container.
+      - name: Checkout goatflow (sibling)
+        uses: actions/checkout@v4
+        with:
+          repository: goatkit/goatflow
+          path: goatflow
+
+      - name: Install zip
+        run: sudo apt-get update && sudo apt-get install -y -qq zip
+
+      - name: Package (build + zip)
+        working-directory: goat-kb
+        run: make package
+
+      # Signing requires an ed25519 key. Set SIGNING_KEY in
+      # goat-kb → Settings → Secrets and variables → Actions.
+      - name: Sign package
+        working-directory: goat-kb
+        env:
+          GOATFLOW_SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+        run: make sign
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            goat-kb/bin/goat-kb.zip
+            goat-kb/bin/goat-kb.zip.sig

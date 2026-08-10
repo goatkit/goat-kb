@@ -1,5 +1,5 @@
 name: goat-kb
-version: "0.1.0"
+version: "0.1.1"
 runtime: grpc
 binary: kb
 description: Knowledge Base plugin with zinc search, OTRS FAQ import, and multi-tenant RBAC

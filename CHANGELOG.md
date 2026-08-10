@@ -14,6 +14,8 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   placeholder-safe at runtime; the lint now also guards against accidental raw
   non-portable SQL and MySQL-only statements (ON DUPLICATE KEY UPDATE /
   INSERT IGNORE / REPLACE INTO) as CI-enforced defense in depth.
+- **Release automation** — GitHub Actions workflow (`.github/workflows/release.yml`)
+  builds, signs, and publishes the plugin on `v*` tag pushes.
 
 ### Changed
 
