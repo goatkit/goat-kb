@@ -56,7 +56,7 @@ lint:
 		-e GOMODCACHE=/src/.gomod \
 		-e GOTMPDIR=/src/.tmp \
 		-e HOME=/tmp \
-		$(GO_IMAGE) sh -c "mkdir -p /src/.gocache /src/.gomod /src/.tmp && go run github.com/goatkit/sql-lint@v0.1.2 /src"
+		$(GO_IMAGE) sh -c "mkdir -p /src/.gocache /src/.gomod /src/.tmp && go run github.com/goatkit/sql-lint@v0.2.0 /src"
 
 package: build
 	@echo "Packaging $(BINARY) $(VERSION)..."
