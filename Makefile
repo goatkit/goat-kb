@@ -12,7 +12,7 @@ CMD_DIR := ./cmd/kb-plugin
 VERSION := $(shell git describe --tags --exact-match 2>/dev/null || git rev-parse --abbrev-ref HEAD 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.Version=$(VERSION)
 GOATFLOW_URL ?= http://localhost:8080
-GO_IMAGE ?= golang:1.25.10-alpine
+GO_IMAGE ?= golang:1.25.12-alpine
 
 build:
 	@echo "Building $(PLUGIN_BINARY) $(VERSION)..."
@@ -23,6 +23,7 @@ build:
 		-v "$(GOATFLOW_DIR)":/goatflow \
 		-w /src \
 		-e GOCACHE=/src/.gocache \
+		-e GOTOOLCHAIN=auto \
 		-e GOMODCACHE=/src/.gomod \
 		-e GOTMPDIR=/src/.tmp \
 		$(GO_IMAGE) sh -c "mkdir -p /src/.gocache /src/.gomod /src/.tmp && go mod download && go build -buildvcs=false -ldflags='$(LDFLAGS)' -o $(BUILD_DIR)/$(PLUGIN_BINARY) $(CMD_DIR)"
@@ -38,6 +39,7 @@ test:
 		-v "$(GOATFLOW_DIR)":/goatflow \
 		-w /src \
 		-e GOCACHE=/src/.gocache \
+		-e GOTOOLCHAIN=auto \
 		-e GOMODCACHE=/src/.gomod \
 		-e GOTMPDIR=/src/.tmp \
 		$(GO_IMAGE) sh -c "mkdir -p /src/.gocache /src/.gomod /src/.tmp && go test -buildvcs=false -v -count=1 ./..."
@@ -50,6 +52,7 @@ lint:
 		-v "$(CURDIR)":/src \
 		-w /src \
 		-e GOCACHE=/src/.gocache \
+		-e GOTOOLCHAIN=auto \
 		-e GOMODCACHE=/src/.gomod \
 		-e GOTMPDIR=/src/.tmp \
 		-e HOME=/tmp \
@@ -76,6 +79,7 @@ sign: package
 		-v "$(GOATFLOW_DIR)":/goatflow \
 		-w /goatflow \
 		-e GOCACHE=/src/.gocache \
+		-e GOTOOLCHAIN=auto \
 		-e GOMODCACHE=/src/.gomod \
 		-e GOTMPDIR=/src/.tmp \
 		$(GO_IMAGE) sh -c "mkdir -p /src/.gocache /src/.gomod /src/.tmp && go run ./cmd/gk sign /src/$(BUILD_DIR)/$(PACKAGE_NAME).zip --key $$KEY"
@@ -86,6 +90,7 @@ keygen:
 		-v "$(GOATFLOW_DIR)":/goatflow \
 		-w /goatflow \
 		-e GOCACHE=/src/.gocache \
+		-e GOTOOLCHAIN=auto \
 		-e GOMODCACHE=/src/.gomod \
 		-e GOTMPDIR=/src/.tmp \
 		$(GO_IMAGE) sh -c "mkdir -p /src/.gocache /src/.gomod /src/.tmp && go run ./cmd/gk keys generate"
@@ -131,6 +136,7 @@ test-integration: package
 		-w /src \
 		-e GOATFLOW_URL="$(GOATFLOW_URL)" \
 		-e GOCACHE=/src/.gocache \
+		-e GOTOOLCHAIN=auto \
 		$(GO_IMAGE) sh -c "mkdir -p /src/.gocache && go test -tags=integration -v ./internal/kb -run TestKBPluginIntegration"
 
 trivy-scan:
