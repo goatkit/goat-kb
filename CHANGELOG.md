@@ -4,6 +4,17 @@ All notable changes to the GoatFlow Knowledge Base plugin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Added
+
+- **Article editor adopts the shared platform Tiptap partial.** `internal/kb/handlers.go`'s
+  article composer now loads the platform's `static/js/gk-editor.js` (the GoatKitEditor promise
+  wrapper that self-loads `tiptap.min.js` + `tiptap-editor.js`) instead of copy-pasting the two
+  script tags and a manual retry loop, and submits through `GoatKitEditor.content(...)` with a
+  fallback to the form field. Same rich-text editor, one source of truth for the asset pair.
+  Build-only verification (goat-kb is not deployed on the dev stack).
+
 ## [0.1.1] - 2026-08-10
 
 ### Added

@@ -909,32 +909,18 @@ func (p *Plugin) handleAdminArticle(ctx context.Context, args json.RawMessage) (
     if linkPrompt == "" || linkPrompt == "editor.insert_link_prompt" {
         linkPrompt = "Enter URL:"
     }
-    h.WriteString(fmt.Sprintf(`<script src="/static/js/tiptap.min.js"></script>
-<script src="/static/js/tiptap-editor.js"></script>
+    h.WriteString(fmt.Sprintf(`<script src="/static/js/gk-editor.js"></script>
 <script>
 (function(){
-    var contentField = document.getElementById('kbContentEditor');
-    var editorContent = %s;
-
-    function initEditor() {
-        if (window.TiptapEditor) {
-            TiptapEditor.init('kbContentEditor', {
-                placeholder: 'Write article content...',
-                editorMode: 'richtext',
-                content: editorContent,
-                imageUploadUrl: '/admin/kb/article/' + (parseInt(document.getElementById('kb-article-form').elements['id'].value) || 0) + '/attachments',
-                imageUrlPrompt: %s,
-                linkUrlPrompt: %s
-            });
-            return true;
-        }
-        return false;
-    }
-
-    // Try immediately, then retry if TipTap not ready yet
-    if (!initEditor()) {
-        document.addEventListener('DOMContentLoaded', initEditor);
-    }
+    GoatKitEditor.init({
+        id: 'kbContentEditor',
+        placeholder: 'Write article content...',
+        editorMode: 'richtext',
+        content: %s,
+        imageUploadUrl: '/admin/kb/article/' + (parseInt(document.getElementById('kb-article-form').elements['id'].value) || 0) + '/attachments',
+        imageUrlPrompt: %s,
+        linkUrlPrompt: %s
+    }).catch(function(err){ console.error('KB editor init failed:', err); });
 })();
 </script>`, jsonMarshalStr(sanitiseText(article.Content)), jsonMarshalStr(imgPrompt), jsonMarshalStr(linkPrompt)))
 
@@ -951,8 +937,8 @@ if (tagStr) { tagStr.split(',').forEach(function(t){var s=t.trim();if(s)addArtic
 document.getElementById("kb-article-form").addEventListener("submit", function(e) {
     e.preventDefault();
     var form = e.target;
-    var content = window.TiptapEditor
-        ? TiptapEditor.getContent('kbContentEditor')
+    var content = window.GoatKitEditor
+        ? GoatKitEditor.content('kbContentEditor')
         : (form.content ? form.content.value : '');
     var data = {
         id: parseInt(form.id.value) || 0,
