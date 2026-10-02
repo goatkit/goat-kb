@@ -380,6 +380,11 @@ func (p *Plugin) handleArticle(ctx context.Context, args json.RawMessage) (json.
 	if orgID == 0 {
 		orgID = p.host.OrgID(ctx)
 	}
+	// Same single-org fallback as the list (kb_list): without it a session
+	// with no active organisation gets 404 for every article the list shows.
+	if orgID <= 0 {
+		orgID = 1
+	}
 
 	// Fetch article with org_id check — prevents cross-org access (IDOR protection).
 	query := "SELECT id, title, content, category, visibility, author, created_at, updated_at FROM gk_kb_articles WHERE id = ? AND org_id = ? AND status = 'published'"

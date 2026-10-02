@@ -6,6 +6,22 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **Deleting a just-uploaded attachment deleted another article's file.** The upload answered with
+  `DBExec`'s rows-affected count (always 1) as the attachment id, so the editor's delete and
+  download buttons acted on attachment 1 of whichever article owned it. The upload now reads the new
+  row's id back by its unique `(article_id, file_key)`, and delete only removes an attachment that
+  belongs to the article in the URL.
+- **`/kb/article/:id` no longer 404s without an active organisation.** It now uses the same
+  default-organisation fallback as the article list, so every article the list shows can be opened.
+
+### Changed
+- **Declares the host permissions GoatFlow 0.10.0 enforces.** The platform sandbox now checks every
+  HostAPI call and SQL statement against `resources.permissions` (GoatFlow 0.10.0). Declared:
+  `gk_kb_*` readwrite, `gk_organisation` read (dialect probe), `file` readwrite (attachments),
+  `http` for the optional Zinc index. The unused `cache`, `config` and `plugin_call` grants are
+  dropped.
+
 ### Added
 
 - **Article editor adopts the shared platform Tiptap partial.** `internal/kb/handlers.go`'s

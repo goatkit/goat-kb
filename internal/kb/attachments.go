@@ -184,7 +184,7 @@ func (p *Plugin) handleAttachmentUpload(ctx context.Context, args json.RawMessag
 	}
 
 	// Insert the DB row.
-	result, err := p.host.DBExec(ctx,
+	_, err = p.host.DBExec(ctx,
 		"INSERT INTO gk_kb_attachments (org_id, article_id, file_key, filename, content_type, size) VALUES (?, ?, ?, ?, ?, ?)",
 		orgID, articleID, fileKey, filename, contentType, len(data))
 	if err != nil {
@@ -192,7 +192,16 @@ func (p *Plugin) handleAttachmentUpload(ctx context.Context, args json.RawMessag
 		return errorResponse(500, "insert attachment: "+err.Error())
 	}
 
-	attachID := toInt64(result)
+	// HostAPI DBExec returns rows affected, not the insert id: read the new
+	// row back by its unique (article_id, file_key) so the client deletes and
+	// downloads this attachment, not whichever row happens to have id 1.
+	idRows, err := p.host.DBQuery(ctx,
+		"SELECT id FROM gk_kb_attachments WHERE article_id = ? AND file_key = ? AND org_id = ?",
+		articleID, fileKey, orgID)
+	if err != nil || len(idRows) == 0 {
+		return errorResponse(500, "attachment stored but its id could not be read back")
+	}
+	attachID := toInt64(idRows[0]["id"])
 	p.host.Log(ctx, "info", "kb: attachment uploaded", map[string]any{
 		"org_id":        orgID,
 		"user":          rc.Login,
@@ -213,8 +222,8 @@ func (p *Plugin) handleAttachmentUpload(ctx context.Context, args json.RawMessag
 }
 
 // handleAttachmentDelete removes a file from storage and deletes the DB row.
-//
-// Args JSON: {"aid": "attachmentID"}
+// Args JSON: {"id": "articleID", "aid": "attachmentID"} (route params). The
+// attachment must belong to the article in the URL.
 func (p *Plugin) handleAttachmentDelete(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
 	if p.host == nil {
 		return errorResponse(503, "host API not available")
@@ -228,11 +237,6 @@ func (p *Plugin) handleAttachmentDelete(ctx context.Context, args json.RawMessag
 		return errorResponse(400, "invalid request: "+err.Error())
 	}
 
-	aidStr := req.AID
-	if aidStr == "" {
-		aidStr = req.ID
-	}
-
 	rc := extractReqCtx(args)
 	orgID := rc.OrgID
 	if orgID == 0 {
@@ -242,13 +246,18 @@ func (p *Plugin) handleAttachmentDelete(ctx context.Context, args json.RawMessag
 		orgID = 1
 	}
 
-	attachID, err := parseInt64(aidStr)
+	attachID, err := parseInt64(req.AID)
 	if err != nil || attachID < 1 {
 		return errorResponse(400, "invalid attachment id")
 	}
+	articleID, err := parseInt64(req.ID)
+	if err != nil || articleID < 1 {
+		return errorResponse(400, "invalid article id")
+	}
 
 	rows, err := p.host.DBQuery(ctx,
-		"SELECT file_key, filename FROM gk_kb_attachments WHERE id = ? AND org_id = ?", attachID, orgID)
+		"SELECT file_key, filename FROM gk_kb_attachments WHERE id = ? AND article_id = ? AND org_id = ?",
+		attachID, articleID, orgID)
 	if err != nil {
 		return errorResponse(500, "query attachment: "+err.Error())
 	}
@@ -262,7 +271,7 @@ func (p *Plugin) handleAttachmentDelete(ctx context.Context, args json.RawMessag
 	_ = p.host.DeleteFile(ctx, fileKey) // best-effort
 
 	_, err = p.host.DBExec(ctx,
-		"DELETE FROM gk_kb_attachments WHERE id = ? AND org_id = ?", attachID, orgID)
+		"DELETE FROM gk_kb_attachments WHERE id = ? AND article_id = ? AND org_id = ?", attachID, articleID, orgID)
 	if err != nil {
 		return errorResponse(500, "delete attachment: "+err.Error())
 	}
