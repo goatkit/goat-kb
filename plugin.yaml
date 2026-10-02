@@ -16,13 +16,11 @@ resources:
     - type: db
       access: readwrite
       scope: ["gk_kb_*"]
-    - type: cache
+    - type: db
+      access: read
+      scope: ["gk_organisation"]
+    - type: file
       access: readwrite
     - type: http
       access: readwrite
-      scope: ["*"]
-    - type: config
-      access: read
-    - type: plugin_call
-      access: read
       scope: ["*"]

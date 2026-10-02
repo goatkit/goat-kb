@@ -3,6 +3,7 @@ package kb
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -25,9 +26,9 @@ type fakeHost struct {
 }
 
 type logEntry struct {
-	level   string
-	msg     string
-	fields  map[string]any
+	level  string
+	msg    string
+	fields map[string]any
 }
 
 func newFakeHost(d dialect) *fakeHost {
@@ -180,40 +181,75 @@ func (h *fakeHost) appliedVersions() []map[string]any {
 
 // The remaining HostAPI methods are not exercised by schema/import tests;
 // stubs satisfy plugin.HostAPI so fakeHost can be assigned to Plugin.host.
-func (h *fakeHost) CacheGet(_ context.Context, _ string) ([]byte, bool, error) { return nil, false, nil }
+func (h *fakeHost) CacheGet(_ context.Context, _ string) ([]byte, bool, error) {
+	return nil, false, nil
+}
 func (h *fakeHost) CacheSet(_ context.Context, _ string, _ []byte, _ int) error { return nil }
-func (h *fakeHost) CacheDelete(_ context.Context, _ string) error { return nil }
+func (h *fakeHost) CacheDelete(_ context.Context, _ string) error               { return nil }
 func (h *fakeHost) HTTPRequest(_ context.Context, _, _ string, _ map[string]string, _ []byte) (int, []byte, error) {
 	return 0, nil, fmt.Errorf("not implemented in fake")
 }
 func (h *fakeHost) SendEmail(_ context.Context, _, _, _ string, _ bool) error { return nil }
-func (h *fakeHost) ConfigGet(_ context.Context, _ string) (string, error) { return "", nil }
-func (h *fakeHost) Translate(_ context.Context, _ string, _ ...any) string { return "" }
+func (h *fakeHost) ConfigGet(_ context.Context, _ string) (string, error)     { return "", nil }
+func (h *fakeHost) Translate(_ context.Context, _ string, _ ...any) string    { return "" }
 func (h *fakeHost) CallPlugin(_ context.Context, _, _ string, _ json.RawMessage) (json.RawMessage, error) {
 	return nil, fmt.Errorf("not implemented in fake")
 }
-func (h *fakeHost) PublishEvent(_ context.Context, _, _, _ string) error { return nil }
+func (h *fakeHost) PublishEvent(_ context.Context, _, _, _ string) error                  { return nil }
 func (h *fakeHost) EntitySoftDelete(_ context.Context, _ string, _ int64, _ string) error { return nil }
-func (h *fakeHost) EntityRestore(_ context.Context, _ string, _ int64) error { return nil }
+func (h *fakeHost) EntityRestore(_ context.Context, _ string, _ int64) error              { return nil }
 func (h *fakeHost) EntityHardDelete(_ context.Context, _ string, _ int64, _ string) error { return nil }
-func (h *fakeHost) RecycleBinList(_ context.Context, _ string) (json.RawMessage, error) { return nil, nil }
+func (h *fakeHost) RecycleBinList(_ context.Context, _ string) (json.RawMessage, error) {
+	return nil, nil
+}
 func (h *fakeHost) SecureConfigGet(_ context.Context, _ string) (string, error) { return "", nil }
-func (h *fakeHost) SecureConfigSet(_ context.Context, _, _ string) error { return nil }
+func (h *fakeHost) SecureConfigSet(_ context.Context, _, _ string) error        { return nil }
 func (h *fakeHost) CustomFieldsGet(_ context.Context, _ string, _ int64, _ []string) (map[string]any, error) {
 	return nil, nil
 }
-func (h *fakeHost) CustomFieldsSet(_ context.Context, _ string, _ int64, _ map[string]any) error { return nil }
+func (h *fakeHost) CustomFieldsSet(_ context.Context, _ string, _ int64, _ map[string]any) error {
+	return nil
+}
 func (h *fakeHost) CustomFieldsQuery(_ context.Context, _ string, _ []plugin.CustomFieldFilter) ([]int64, error) {
 	return nil, nil
 }
-func (h *fakeHost) StoreFile(_ context.Context, _ string, _ []byte, _ map[string]string) error { return nil }
+func (h *fakeHost) StoreFile(_ context.Context, _ string, _ []byte, _ map[string]string) error {
+	return nil
+}
 func (h *fakeHost) GetFile(_ context.Context, _ string) ([]byte, map[string]string, error) {
 	return nil, nil, fmt.Errorf("not found")
 }
-func (h *fakeHost) DeleteFile(_ context.Context, _ string) error { return nil }
+func (h *fakeHost) DeleteFile(_ context.Context, _ string) error                     { return nil }
 func (h *fakeHost) ListFiles(_ context.Context, _ string) ([]plugin.FileInfo, error) { return nil, nil }
 func (h *fakeHost) GenerateThumbnail(_ context.Context, _ []byte, _ string, _, _ int) ([]byte, string, error) {
 	return []byte("thumb"), "image/jpeg", nil
+}
+
+var errTestHostNotImplemented = errors.New("not implemented in test host")
+
+func (h *fakeHost) CreateArticleAttachment(_ context.Context, _, _ int64, _, _ string, _ []byte) (int64, error) {
+	return 0, errTestHostNotImplemented
+}
+func (h *fakeHost) ListArticleAttachments(_ context.Context, _ int64) ([]plugin.ArticleAttachment, error) {
+	return nil, errTestHostNotImplemented
+}
+func (h *fakeHost) DeleteArticleAttachment(_ context.Context, _, _ int64) error {
+	return errTestHostNotImplemented
+}
+func (h *fakeHost) CreateArticle(_ context.Context, _, _ int64, _, _ string, _ bool) (int64, error) {
+	return 0, errTestHostNotImplemented
+}
+func (h *fakeHost) ChangeTicketStatus(_ context.Context, _, _, _, _ int64) error {
+	return errTestHostNotImplemented
+}
+func (h *fakeHost) ListTicketStates(_ context.Context) ([]plugin.TicketStateInfo, error) {
+	return nil, errTestHostNotImplemented
+}
+func (h *fakeHost) ListTicketViews(_ context.Context) ([]plugin.TicketViewInfo, error) {
+	return nil, errTestHostNotImplemented
+}
+func (h *fakeHost) RenderMarkdownToPdf(_ context.Context, _ string, _ plugin.PdfRenderOptions) ([]byte, error) {
+	return nil, errTestHostNotImplemented
 }
 
 // --- dialect detection ---
@@ -508,7 +544,6 @@ func TestCallImportNoBodyReturns400(t *testing.T) {
 	}
 }
 
-
 // --- error response convention ---
 
 func TestErrorResponseSetsStatus(t *testing.T) {
@@ -532,11 +567,11 @@ func TestErrorResponseSetsStatus(t *testing.T) {
 
 func TestSlugify(t *testing.T) {
 	cases := map[string]string{
-		"Hello World":          "hello-world",
+		"Hello World":         "hello-world",
 		"  spaced  ":          "spaced",
 		"How to / Reset.Pass": "how-to-reset-pass",
-		"":                     "article",
-		"---":                  "article",
+		"":                    "article",
+		"---":                 "article",
 		"UPPER Case":          "upper-case",
 	}
 	for in, want := range cases {

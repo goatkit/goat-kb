@@ -218,10 +218,9 @@ func (p *Plugin) GKRegister() (*plugin.GKRegistration, error) {
 			ShutdownTimeout: "5s",
 			Permissions: []plugin.Permission{
 				{Type: "db", Access: "readwrite", Scope: []string{"gk_kb_*"}},
-				{Type: "cache", Access: "readwrite"},
+				{Type: "db", Access: "read", Scope: []string{"gk_organisation"}},
+				{Type: "file", Access: "readwrite"},
 				{Type: "http", Access: "readwrite", Scope: []string{"*"}},
-				{Type: "config", Access: "read"},
-				{Type: "plugin_call", Access: "read", Scope: []string{"*"}},
 			},
 		},
 	}, nil
