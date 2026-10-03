@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/microcosm-cc/bluemonday"
 	plugin "github.com/goatkit/goatflow/pkg/plugin"
+	"github.com/microcosm-cc/bluemonday"
 )
 
 // --- request context ---
@@ -152,7 +152,9 @@ func (p *Plugin) handleList(ctx context.Context, args json.RawMessage) (json.Raw
 	if orgID == 0 {
 		orgID = p.host.OrgID(ctx)
 	}
-	if orgID <= 0 { orgID = 1 }
+	if orgID <= 0 {
+		orgID = 1
+	}
 	offset := (params.Page - 1) * params.PerPage
 
 	visClause := rc.visibilityClause()
@@ -196,18 +198,26 @@ func (p *Plugin) handleList(ctx context.Context, args json.RawMessage) (json.Raw
 }
 
 func (p *Plugin) handleRecentWidget(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
-	if p.host == nil { return errorResponse(503, "host API not available") }
+	if p.host == nil {
+		return errorResponse(503, "host API not available")
+	}
 
 	rc := extractReqCtx(args)
 	visClause := rc.visibilityClause()
 	orgID := rc.OrgID
-	if orgID == 0 { orgID = p.host.OrgID(ctx) }
-	if orgID == 0 { orgID = 1 }
+	if orgID == 0 {
+		orgID = p.host.OrgID(ctx)
+	}
+	if orgID == 0 {
+		orgID = 1
+	}
 
 	rows, err := p.host.DBQuery(ctx,
 		"SELECT id, title, summary, updated_at FROM gk_kb_articles WHERE org_id = ? AND status = 'published'"+visClause+" ORDER BY updated_at DESC LIMIT 5",
 		orgID)
-	if err != nil { return internalError(ctx, p.host, 500, "query recent articles", err) }
+	if err != nil {
+		return internalError(ctx, p.host, 500, "query recent articles", err)
+	}
 
 	type articleRow struct {
 		ID          int64
@@ -218,7 +228,9 @@ func (p *Plugin) handleRecentWidget(ctx context.Context, args json.RawMessage) (
 	articles := make([]articleRow, 0, len(rows))
 	for _, row := range rows {
 		date := toString(row["updated_at"])
-		if len(date) >= 10 { date = date[:10] }
+		if len(date) >= 10 {
+			date = date[:10]
+		}
 		articles = append(articles, articleRow{
 			ID:          toInt64(row["id"]),
 			Title:       sanitiseText(toString(row["title"])),
@@ -228,7 +240,9 @@ func (p *Plugin) handleRecentWidget(ctx context.Context, args json.RawMessage) (
 	}
 
 	html, err := p.render("widget_recent.pongo2", ctx, map[string]any{"articles": articles})
-	if err != nil { return internalError(ctx, p.host, 500, "render template", err) }
+	if err != nil {
+		return internalError(ctx, p.host, 500, "render template", err)
+	}
 	return json.Marshal(map[string]string{"html": html})
 }
 
@@ -297,8 +311,12 @@ func (p *Plugin) handleSearch(ctx context.Context, args json.RawMessage) (json.R
 	}
 
 	orgID := rc.OrgID
-	if orgID == 0 { orgID = p.host.OrgID(ctx) }
-	if orgID == 0 { orgID = 1 }
+	if orgID == 0 {
+		orgID = p.host.OrgID(ctx)
+	}
+	if orgID == 0 {
+		orgID = 1
+	}
 	zres, err := p.zinc.search(ctx, params.Query, orgID, params.Page, params.PerPage, rc.maxVisibilityFilter())
 	if err != nil {
 		return internalError(ctx, p.host, 502, "search", err)
@@ -342,7 +360,7 @@ type articleDetail struct {
 	Author     string `json:"author"`
 	CreatedAt  string `json:"created_at"`
 	UpdatedAt  string `json:"updated_at"`
-	Tags      string `json:"tags"`
+	Tags       string `json:"tags"`
 }
 
 // handleArticle returns a single KB article after permission verification.
@@ -592,10 +610,11 @@ func jsonMarshal(v any) (json.RawMessage, error) { return json.Marshal(v) }
 // (e.g., a quoted string suitable for embedding in JavaScript).
 func jsonMarshalStr(v any) string {
 	b, err := json.Marshal(v)
-	if err != nil { return `""` }
+	if err != nil {
+		return `""`
+	}
 	return string(b)
 }
-
 
 // Policy for sanitising rich HTML content (matches GoatFlow platform policy).
 var htmlPolicy = bluemonday.NewPolicy().
@@ -634,141 +653,190 @@ func escapeLike(s string) string {
 }
 
 func (p *Plugin) handleAdminList(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
-    if p.host == nil { return errorResponse(503, "host API not available") }
-    params := listParams{Page: 1, PerPage: 20}
-    if len(args) > 0 {
-        if err := json.Unmarshal(args, &params); err != nil {
-            return errorResponse(400, "invalid list params: " + err.Error())
-        }
-    }
-    if params.Page < 1 { params.Page = 1 }
-    if params.PerPage < 1 || params.PerPage > 100 { params.PerPage = 20 }
-    orgID := extractReqCtx(args).OrgID
-    if orgID == 0 { orgID = p.host.OrgID(ctx) }
-    if orgID == 0 { orgID = 1 }
-    query := strings.TrimSpace(params.Search)
-    filterCat := strings.TrimSpace(params.Category)
-    filterScope := strings.TrimSpace(params.Scope)
-    filterStatus := strings.TrimSpace(params.Status)
-    offset := (params.Page - 1) * params.PerPage
+	if p.host == nil {
+		return errorResponse(503, "host API not available")
+	}
+	params := listParams{Page: 1, PerPage: 20}
+	if len(args) > 0 {
+		if err := json.Unmarshal(args, &params); err != nil {
+			return errorResponse(400, "invalid list params: "+err.Error())
+		}
+	}
+	if params.Page < 1 {
+		params.Page = 1
+	}
+	if params.PerPage < 1 || params.PerPage > 100 {
+		params.PerPage = 20
+	}
+	orgID := extractReqCtx(args).OrgID
+	if orgID == 0 {
+		orgID = p.host.OrgID(ctx)
+	}
+	if orgID == 0 {
+		orgID = 1
+	}
+	query := strings.TrimSpace(params.Search)
+	filterCat := strings.TrimSpace(params.Category)
+	filterScope := strings.TrimSpace(params.Scope)
+	filterStatus := strings.TrimSpace(params.Status)
+	offset := (params.Page - 1) * params.PerPage
 
-    conds := []string{"org_id = ?"}; a := []any{orgID}
-    if query != "" { like := "%" + escapeLike(query) + "%"; conds = append(conds, "(title LIKE ? OR summary LIKE ?)"); a = append(a, like, like) }
-    if filterCat != "" { conds = append(conds, "category = ?"); a = append(a, filterCat) }
-    if filterScope != "" { conds = append(conds, "visibility = ?"); a = append(a, filterScope) }
-    if filterStatus != "" { conds = append(conds, "status = ?"); a = append(a, filterStatus) }
-    where := strings.Join(conds, " AND ")
-    a = append(a, params.PerPage, offset)
+	conds := []string{"org_id = ?"}
+	a := []any{orgID}
+	if query != "" {
+		like := "%" + escapeLike(query) + "%"
+		conds = append(conds, "(title LIKE ? OR summary LIKE ?)")
+		a = append(a, like, like)
+	}
+	if filterCat != "" {
+		conds = append(conds, "category = ?")
+		a = append(a, filterCat)
+	}
+	if filterScope != "" {
+		conds = append(conds, "visibility = ?")
+		a = append(a, filterScope)
+	}
+	if filterStatus != "" {
+		conds = append(conds, "status = ?")
+		a = append(a, filterStatus)
+	}
+	where := strings.Join(conds, " AND ")
+	a = append(a, params.PerPage, offset)
 
-    p.host.Log(ctx, "info", "kb: admin list", map[string]any{"orgID": orgID, "search": query, "category": filterCat, "scope": filterScope, "status": filterStatus})
-    rows, err := p.host.DBQuery(ctx,
-        "SELECT id, title, summary, category, visibility, status, author, created_at, updated_at FROM gk_kb_articles WHERE "+where+" ORDER BY updated_at DESC LIMIT ? OFFSET ?",
-        a...)
-    if err != nil { return internalError(ctx, p.host, 500, "query articles", err) }
-    articles := make([]articleSummary, 0, len(rows))
-    for _, row := range rows {
-        articles = append(articles, articleSummary{
-            ID: toInt64(row["id"]), Title: toString(row["title"]), Summary: toString(row["summary"]),
-            Category: toString(row["category"]), Visibility: toString(row["visibility"]),
-            Status: toString(row["status"]),
-            Author: toString(row["author"]), UpdatedAt: toString(row["updated_at"]),
-        })
-    }
-    ca := []any{orgID}
-    if query != "" { like := "%" + escapeLike(query) + "%"; ca = append(ca, like, like) }
-    if filterCat != "" { ca = append(ca, filterCat) }
-    if filterScope != "" { ca = append(ca, filterScope) }
-    if filterStatus != "" { ca = append(ca, filterStatus) }
-    cr, err := p.host.DBQuery(ctx, "SELECT COUNT(*) as total FROM gk_kb_articles WHERE "+where, ca...)
-    if err != nil { return internalError(ctx, p.host, 500, "count articles", err) }
-    totalCount := int64(0)
-    if len(cr) > 0 { totalCount = toInt64(cr[0]["total"]) }
-    totalPages := int(totalCount + int64(params.PerPage) - 1) / int(params.PerPage)
-    if totalPages < 1 { totalPages = 1 }
+	p.host.Log(ctx, "info", "kb: admin list", map[string]any{"orgID": orgID, "search": query, "category": filterCat, "scope": filterScope, "status": filterStatus})
+	rows, err := p.host.DBQuery(ctx,
+		"SELECT id, title, summary, category, visibility, status, author, created_at, updated_at FROM gk_kb_articles WHERE "+where+" ORDER BY updated_at DESC LIMIT ? OFFSET ?",
+		a...)
+	if err != nil {
+		return internalError(ctx, p.host, 500, "query articles", err)
+	}
+	articles := make([]articleSummary, 0, len(rows))
+	for _, row := range rows {
+		articles = append(articles, articleSummary{
+			ID: toInt64(row["id"]), Title: toString(row["title"]), Summary: toString(row["summary"]),
+			Category: toString(row["category"]), Visibility: toString(row["visibility"]),
+			Status: toString(row["status"]),
+			Author: toString(row["author"]), UpdatedAt: toString(row["updated_at"]),
+		})
+	}
+	ca := []any{orgID}
+	if query != "" {
+		like := "%" + escapeLike(query) + "%"
+		ca = append(ca, like, like)
+	}
+	if filterCat != "" {
+		ca = append(ca, filterCat)
+	}
+	if filterScope != "" {
+		ca = append(ca, filterScope)
+	}
+	if filterStatus != "" {
+		ca = append(ca, filterStatus)
+	}
+	cr, err := p.host.DBQuery(ctx, "SELECT COUNT(*) as total FROM gk_kb_articles WHERE "+where, ca...)
+	if err != nil {
+		return internalError(ctx, p.host, 500, "count articles", err)
+	}
+	totalCount := int64(0)
+	if len(cr) > 0 {
+		totalCount = toInt64(cr[0]["total"])
+	}
+	totalPages := int(totalCount+int64(params.PerPage)-1) / int(params.PerPage)
+	if totalPages < 1 {
+		totalPages = 1
+	}
 
-    catRows, _ := p.host.DBQuery(ctx, "SELECT name FROM gk_kb_categories WHERE org_id = ? ORDER BY name", orgID)
-    categories := make([]string, 0, len(catRows))
-    for _, r := range catRows { categories = append(categories, toString(r["name"])) }
-    // Build list data
-    templateArticles := make([]map[string]any, 0, len(articles))
-    for _, a := range articles {
-        ds := a.UpdatedAt
-        if len(ds) >= 10 { ds = ds[:10] }
-        templateArticles = append(templateArticles, map[string]any{
-            "ID": a.ID, "Title": a.Title, "Summary": a.Summary,
-            "Category": a.Category, "Visibility": a.Visibility, "Status": a.Status,
-            "Author": a.Author, "DateStr": ds,
-        })
-    }
-    html, err := p.render("kb_list.pongo2", ctx, map[string]any{
-        "IsAdmin":        true,
-        "IsAgent":        false,
-        "IsCustomer":     false,
-        "articles":       templateArticles,
-        "page":           params.Page,
-        "totalPages":     totalPages,
-        "totalCount":     totalCount,
-        "Query":          query,
-        "Categories":     categories,
-        "FilterCategory": filterCat,
-        "FilterScope":    filterScope,
-        "FilterStatus":   filterStatus,
-    })
-    if err != nil { return internalError(ctx, p.host, 500, "render template", err) }
-    return json.Marshal(map[string]string{
-        "html": html, "title": "Knowledge Base", "active_page": "kb-admin",
-    })
+	catRows, _ := p.host.DBQuery(ctx, "SELECT name FROM gk_kb_categories WHERE org_id = ? ORDER BY name", orgID)
+	categories := make([]string, 0, len(catRows))
+	for _, r := range catRows {
+		categories = append(categories, toString(r["name"]))
+	}
+	// Build list data
+	templateArticles := make([]map[string]any, 0, len(articles))
+	for _, a := range articles {
+		ds := a.UpdatedAt
+		if len(ds) >= 10 {
+			ds = ds[:10]
+		}
+		templateArticles = append(templateArticles, map[string]any{
+			"ID": a.ID, "Title": a.Title, "Summary": a.Summary,
+			"Category": a.Category, "Visibility": a.Visibility, "Status": a.Status,
+			"Author": a.Author, "DateStr": ds,
+		})
+	}
+	html, err := p.render("kb_list.pongo2", ctx, map[string]any{
+		"IsAdmin":        true,
+		"IsAgent":        false,
+		"IsCustomer":     false,
+		"articles":       templateArticles,
+		"page":           params.Page,
+		"totalPages":     totalPages,
+		"totalCount":     totalCount,
+		"Query":          query,
+		"Categories":     categories,
+		"FilterCategory": filterCat,
+		"FilterScope":    filterScope,
+		"FilterStatus":   filterStatus,
+	})
+	if err != nil {
+		return internalError(ctx, p.host, 500, "render template", err)
+	}
+	return json.Marshal(map[string]string{
+		"html": html, "title": "Knowledge Base", "active_page": "kb-admin",
+	})
 }
 
 func (p *Plugin) handleAdminArticle(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
-    if p.host == nil {
-        return errorResponse(503, "host API not available")
-    }
-    rc := extractReqCtx(args)
-    params := articleParams{}
-    if err := json.Unmarshal(args, &params); err != nil {
-        var idStr string
-        if err2 := json.Unmarshal(args, &idStr); err2 == nil {
-            params.ID = idStr
-        }
-    }
-    idStr := params.ID
-    var article articleDetail
-    if idStr != "" && idStr != "new" {
-        id, err := strconv.ParseInt(idStr, 10, 64)
-        if err != nil || id < 1 {
-            return errorResponse(400, "invalid article id")
-        }
-        orgID := p.host.OrgID(ctx)
-        if orgID == 0 {
-            orgID = p.host.OrgID(ctx)
-        }
-        if orgID == 0 { orgID = 1 }
-        rows, err := p.host.DBQuery(ctx,
-            "SELECT id, title, summary, content, category, visibility, status, author, tags, created_at, updated_at FROM gk_kb_articles WHERE id = ? AND org_id = ?",
-            id, orgID)
-        if err != nil {
-            return errorResponse(500, "query article failed")
-        }
-        if len(rows) == 0 {
-            return errorResponse(404, "article not found")
-        }
-        row := rows[0]
-        article = articleDetail{
-            ID:         toInt64(row["id"]),
-            Title:      toString(row["title"]),
-            Summary:    toString(row["summary"]),
-            Content:    toString(row["content"]),
-            Category:   toString(row["category"]),
-            Visibility: toString(row["visibility"]),
-            Status:     toString(row["status"]),
-            Author:     toString(row["author"]),
-            CreatedAt:  toString(row["created_at"]),
-            UpdatedAt:  toString(row["updated_at"]),
-            Tags:        toString(row["tags"]),
-        }
-    }
-    // Build visibility dropdown options
+	if p.host == nil {
+		return errorResponse(503, "host API not available")
+	}
+	rc := extractReqCtx(args)
+	params := articleParams{}
+	if err := json.Unmarshal(args, &params); err != nil {
+		var idStr string
+		if err2 := json.Unmarshal(args, &idStr); err2 == nil {
+			params.ID = idStr
+		}
+	}
+	idStr := params.ID
+	var article articleDetail
+	if idStr != "" && idStr != "new" {
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil || id < 1 {
+			return errorResponse(400, "invalid article id")
+		}
+		orgID := p.host.OrgID(ctx)
+		if orgID == 0 {
+			orgID = p.host.OrgID(ctx)
+		}
+		if orgID == 0 {
+			orgID = 1
+		}
+		rows, err := p.host.DBQuery(ctx,
+			"SELECT id, title, summary, content, category, visibility, status, author, tags, created_at, updated_at FROM gk_kb_articles WHERE id = ? AND org_id = ?",
+			id, orgID)
+		if err != nil {
+			return errorResponse(500, "query article failed")
+		}
+		if len(rows) == 0 {
+			return errorResponse(404, "article not found")
+		}
+		row := rows[0]
+		article = articleDetail{
+			ID:         toInt64(row["id"]),
+			Title:      toString(row["title"]),
+			Summary:    toString(row["summary"]),
+			Content:    toString(row["content"]),
+			Category:   toString(row["category"]),
+			Visibility: toString(row["visibility"]),
+			Status:     toString(row["status"]),
+			Author:     toString(row["author"]),
+			CreatedAt:  toString(row["created_at"]),
+			UpdatedAt:  toString(row["updated_at"]),
+			Tags:       toString(row["tags"]),
+		}
+	}
+	// Build visibility dropdown options
 	visOpts := []string{"public", "agent"}
 	visLabels := map[string]string{
 		"public": p.tr(ctx, "kb.users_agents", "Users & Agents"),
@@ -781,7 +849,9 @@ func (p *Plugin) handleAdminArticle(ctx context.Context, args json.RawMessage) (
 			sel = " selected"
 		}
 		label := visLabels[v]
-		if label == "" { label = v }
+		if label == "" {
+			label = v
+		}
 		visSelBuf.WriteString(fmt.Sprintf(`<option value="%s"%s>%s</option>`, v, sel, label))
 	}
 	visSelect := visSelBuf.String()
@@ -800,15 +870,21 @@ func (p *Plugin) handleAdminArticle(ctx context.Context, args json.RawMessage) (
 			sel = " selected"
 		}
 		stLabel := statusLabels[v]
-		if stLabel == "" { stLabel = strings.Title(v) }
+		if stLabel == "" {
+			stLabel = strings.Title(v)
+		}
 		statusSelBuf.WriteString(fmt.Sprintf(`<option value="%s"%s>%s</option>`, v, sel, stLabel))
 	}
 	statusSelect := statusSelBuf.String()
 	// Build category dropdown options from gk_kb_categories table
 	var catSelBuf strings.Builder
 	orgID := rc.OrgID
-	if orgID == 0 { orgID = p.host.OrgID(ctx) }
-	if orgID == 0 { orgID = 1 }
+	if orgID == 0 {
+		orgID = p.host.OrgID(ctx)
+	}
+	if orgID == 0 {
+		orgID = 1
+	}
 	catRows, _ := p.host.DBQuery(ctx, "SELECT name FROM gk_kb_categories WHERE org_id = ? ORDER BY name", orgID)
 	catNames := make(map[string]bool, len(catRows))
 	catSelBuf.WriteString(fmt.Sprintf(`<option value="">%s</option>`, p.tr(ctx, "kb.none_option", "-- None --")))
@@ -816,7 +892,9 @@ func (p *Plugin) handleAdminArticle(ctx context.Context, args json.RawMessage) (
 		name := toString(row["name"])
 		catNames[name] = true
 		sel := ""
-		if article.Category == name { sel = " selected" }
+		if article.Category == name {
+			sel = " selected"
+		}
 		catSelBuf.WriteString(fmt.Sprintf(`<option value="%s"%s>%s</option>`, html.EscapeString(name), sel, html.EscapeString(name)))
 	}
 	// If article has a category not in the managed list, add it as an option
@@ -824,49 +902,49 @@ func (p *Plugin) handleAdminArticle(ctx context.Context, args json.RawMessage) (
 		catSelBuf.WriteString(fmt.Sprintf(`<option value="%s" selected>%s</option>`, html.EscapeString(article.Category), html.EscapeString(article.Category)))
 	}
 	catSelect := catSelBuf.String()
-    // Pre-fetch existing attachments so the edit form can render them.
-    // Only meaningful for already-saved articles (uploads need a row).
-    var attachmentsJSON string
-    if article.ID > 0 {
-        attachmentsJSON = jsonMarshalStr(p.fetchAttachments(ctx, orgID, article.ID))
-    } else {
-        attachmentsJSON = "[]"
-    }
+	// Pre-fetch existing attachments so the edit form can render them.
+	// Only meaningful for already-saved articles (uploads need a row).
+	var attachmentsJSON string
+	if article.ID > 0 {
+		attachmentsJSON = jsonMarshalStr(p.fetchAttachments(ctx, orgID, article.ID))
+	} else {
+		attachmentsJSON = "[]"
+	}
 
-    // Build the HTML in parts to avoid complex multi-line fmt.Sprintf
-    var h strings.Builder
-    h.WriteString(`<div class="container mx-auto py-6">`)
-    
-    // Breadcrumbs
-    h.WriteString(fmt.Sprintf(`<nav class="flex items-center text-sm mb-4" aria-label="Breadcrumb">
+	// Build the HTML in parts to avoid complex multi-line fmt.Sprintf
+	var h strings.Builder
+	h.WriteString(`<div class="container mx-auto py-6">`)
+
+	// Breadcrumbs
+	h.WriteString(fmt.Sprintf(`<nav class="flex items-center text-sm mb-4" aria-label="Breadcrumb">
         <a href="/dashboard" class="gk-link-neon">%s</a>
         <svg class="mx-2 h-4 w-4" style="color: var(--gk-text-muted);" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
         <a href="/admin/kb" class="gk-link-neon">%s</a>
         <svg class="mx-2 h-4 w-4" style="color: var(--gk-text-muted);" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path></svg>
         <span class="font-medium" style="color: var(--gk-text-primary);">%s</span>
     </nav>`, p.tr(ctx, "kb.dashboard", "Dashboard"), p.tr(ctx, "kb.knowledge_base", "Knowledge Base"), sanitiseText(map[bool]string{true: p.tr(ctx, "kb.edit_article", "Edit KB Article") + " #" + strconv.FormatInt(article.ID, 10), false: p.tr(ctx, "kb.new_article_heading", "New KB Article")}[article.ID > 0])))
-    
-    // Heading
-    heading := map[bool]string{true: p.tr(ctx, "kb.edit_article", "Edit KB Article"), false: p.tr(ctx, "kb.new_article_heading", "New KB Article")}[article.ID > 0]
-    h.WriteString(fmt.Sprintf(`<div class="max-w-3xl">
+
+	// Heading
+	heading := map[bool]string{true: p.tr(ctx, "kb.edit_article", "Edit KB Article"), false: p.tr(ctx, "kb.new_article_heading", "New KB Article")}[article.ID > 0]
+	h.WriteString(fmt.Sprintf(`<div class="max-w-3xl">
         <h1 class="text-2xl font-bold mb-6 gk-heading"><span class="gk-text-gradient">%s</span></h1>`, heading))
-    
-    // Form card
-    h.WriteString(`<div class="gk-card-glow">
+
+	// Form card
+	h.WriteString(`<div class="gk-card-glow">
             <div class="gk-card-body p-6">
                 <form id="kb-article-form" class="space-y-4">`)
-    
-    h.WriteString(fmt.Sprintf(`<input type="hidden" name="id" value="%d">`, article.ID))
-    
-    // Title
-    h.WriteString(fmt.Sprintf(`<div><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">%s</label>
+
+	h.WriteString(fmt.Sprintf(`<input type="hidden" name="id" value="%d">`, article.ID))
+
+	// Title
+	h.WriteString(fmt.Sprintf(`<div><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">%s</label>
         <input type="text" name="title" value="%s" class="gk-input-neon w-full" required></div>`, p.tr(ctx, "kb.title", "Title"), html.EscapeString(article.Title)))
 
-    // Summary
-    h.WriteString(fmt.Sprintf(`<div><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">%s</label>
+	// Summary
+	h.WriteString(fmt.Sprintf(`<div><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">%s</label>
         <input type="text" name="summary" value="%s" class="gk-input-neon w-full" placeholder="%s"></div>`, p.tr(ctx, "kb.summary", "Summary"), html.EscapeString(article.Summary), p.tr(ctx, "kb.summary_placeholder", "Brief description of the article...")))
-    // Category + Visibility + Status grid
-    h.WriteString(fmt.Sprintf(`<div class="grid grid-cols-3 gap-4">
+	// Category + Visibility + Status grid
+	h.WriteString(fmt.Sprintf(`<div class="grid grid-cols-3 gap-4">
         <div><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">%s <a href="/admin/kb/categories" class="text-xs gk-link-neon ml-1" style="font-weight:400;">%s</a></label>
             <select name="category" class="gk-select-neon w-full">%s</select></div>
         <div><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">%s</label>
@@ -874,19 +952,19 @@ func (p *Plugin) handleAdminArticle(ctx context.Context, args json.RawMessage) (
         <div><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">%s</label>
             <select name="status" class="gk-select-neon w-full">%s</select></div>
     </div>`, p.tr(ctx, "kb.category", "Category"), p.tr(ctx, "kb.manage", "Manage"), catSelect, p.tr(ctx, "kb.visibility", "Visibility"), visSelect, p.tr(ctx, "kb.status", "Status"), statusSelect))
-    // Tags chip input
-    h.WriteString(fmt.Sprintf(`<div style="margin-top: 1rem;"><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">%s</label>
+	// Tags chip input
+	h.WriteString(fmt.Sprintf(`<div style="margin-top: 1rem;"><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">%s</label>
         <div id="kb-tags" style="display:flex;flex-wrap:wrap;gap:0.4rem;padding:0.5rem;min-height:2.5rem;border:1px solid var(--gk-border,#444);border-radius:6px;background:var(--gk-bg-input,#1e1e2e);cursor:text;" onclick="document.getElementById('kb-tags-input').focus()">
             <input type="text" id="kb-tags-input" placeholder="%s" style="flex:1;min-width:150px;border:none;outline:none;background:transparent;color:var(--gk-text,#cdd6f4);font-size:0.9rem;padding:0.2rem;">
         </div></div>`, p.tr(ctx, "kb.tags", "Tags"), p.tr(ctx, "kb.tags_placeholder", "Type and press comma or Enter...")))
 
-    h.WriteString(fmt.Sprintf(`<div><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">%s</label>
+	h.WriteString(fmt.Sprintf(`<div><label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">%s</label>
         <div id="kbContentEditor" class="gk-tiptap-container w-full" style="min-height:300px;"></div></div>`, p.tr(ctx, "kb.content", "Content")))
 
-    // Attachments section — only rendered for already-saved articles,
-    // since uploads need an existing article row to attach to.
-    if article.ID > 0 {
-        h.WriteString(fmt.Sprintf(`<div class="kb-attachments-section" style="margin-top:1rem;">
+	// Attachments section — only rendered for already-saved articles,
+	// since uploads need an existing article row to attach to.
+	if article.ID > 0 {
+		h.WriteString(fmt.Sprintf(`<div class="kb-attachments-section" style="margin-top:1rem;">
             <label class="block text-sm font-medium mb-1" style="color: var(--gk-text-secondary);">%s</label>
             <div style="display:flex;gap:0.5rem;align-items:center;margin-bottom:0.5rem;">
                 <input type="file" id="kb-attach-file" class="gk-input-neon" style="flex:1;padding:0.35rem;">
@@ -896,35 +974,35 @@ func (p *Plugin) handleAdminArticle(ctx context.Context, args json.RawMessage) (
             <div id="kb-attachments-list" style="display:flex;flex-direction:column;gap:0.4rem;"></div>
             <div id="kb-attachments-data" style="display:none;">%s</div>
         </div>`, p.tr(ctx, "kb.attachments", "Attachments"), p.tr(ctx, "kb.upload", "Upload"), attachmentsJSON))
-    }
-    
-    // Buttons
-    btnTxt := map[bool]string{true: p.tr(ctx, "kb.update", "Update"), false: p.tr(ctx, "kb.create", "Create")}[article.ID > 0]
-    h.WriteString(fmt.Sprintf(`<div class="flex justify-end space-x-3 pt-2">
+	}
+
+	// Buttons
+	btnTxt := map[bool]string{true: p.tr(ctx, "kb.update", "Update"), false: p.tr(ctx, "kb.create", "Create")}[article.ID > 0]
+	h.WriteString(fmt.Sprintf(`<div class="flex justify-end space-x-3 pt-2">
         <button type="button" onclick="history.back()" class="gk-btn-secondary">%s</button>
         <button type="submit" class="gk-btn-neon">%s</button>
     </div>`, p.tr(ctx, "kb.cancel", "Cancel"), btnTxt))
-    
-    // Close form and card
-    h.WriteString(`</form></div></div></div>`)
-    
-    // Script with TipTap editor
-    h.WriteString(`</div>`)
+
+	// Close form and card
+	h.WriteString(`</form></div></div></div>`)
+
+	// Script with TipTap editor
+	h.WriteString(`</div>`)
 	loginJS := strings.ReplaceAll(rc.Login, `\`, `\\`)
 	loginJS = strings.ReplaceAll(loginJS, `"`, `\"`)
 	loginJS = strings.ReplaceAll(loginJS, "\n", `\n`)
 	loginJS = strings.ReplaceAll(loginJS, "\r", `\r`)
 	loginJS = strings.ReplaceAll(loginJS, `</`, `<\/`)
-    // i18n prompt strings for the editor (Translate returns the key if unset)
-    imgPrompt := p.host.Translate(ctx, "editor.insert_image_prompt")
-    if imgPrompt == "" || imgPrompt == "editor.insert_image_prompt" {
-        imgPrompt = "Enter image URL (or leave empty to pick a file):"
-    }
-    linkPrompt := p.host.Translate(ctx, "editor.insert_link_prompt")
-    if linkPrompt == "" || linkPrompt == "editor.insert_link_prompt" {
-        linkPrompt = "Enter URL:"
-    }
-    h.WriteString(fmt.Sprintf(`<script src="/static/js/gk-editor.js"></script>
+	// i18n prompt strings for the editor (Translate returns the key if unset)
+	imgPrompt := p.host.Translate(ctx, "editor.insert_image_prompt")
+	if imgPrompt == "" || imgPrompt == "editor.insert_image_prompt" {
+		imgPrompt = "Enter image URL (or leave empty to pick a file):"
+	}
+	linkPrompt := p.host.Translate(ctx, "editor.insert_link_prompt")
+	if linkPrompt == "" || linkPrompt == "editor.insert_link_prompt" {
+		linkPrompt = "Enter URL:"
+	}
+	h.WriteString(fmt.Sprintf(`<script src="/static/js/gk-editor.js"></script>
 <script>
 (function(){
     GoatKitEditor.init({
@@ -939,8 +1017,8 @@ func (p *Plugin) handleAdminArticle(ctx context.Context, args json.RawMessage) (
 })();
 </script>`, jsonMarshalStr(sanitiseText(article.Content)), jsonMarshalStr(imgPrompt), jsonMarshalStr(linkPrompt)))
 
-    // Tags chip JS
-    h.WriteString(fmt.Sprintf(`<script>
+	// Tags chip JS
+	h.WriteString(fmt.Sprintf(`<script>
 // Tag chip functions
 function getArticleTags(){return Array.from(document.querySelectorAll('#kb-tags .kb-tag-badge')).map(function(t){return t.getAttribute('data-value');});}
 function addArticleTag(text){if(text.indexOf(',')!==-1){text.split(',').forEach(function(s){s=s.trim();if(s)addArticleTag(s);});return;}text=text.replace(/\.$/, '').trim();if(!text)return;var c=document.getElementById('kb-tags'),i=document.getElementById('kb-tags-input'),t=document.createElement('span');t.className='kb-tag-badge';t.setAttribute('data-value',text);t.style.cssText='display:inline-flex;align-items:center;gap:0.3rem;padding:0.2rem 0.6rem;border-radius:9999px;font-size:0.8rem;background:var(--gk-primary-subtle,#1e3a5f);color:var(--gk-primary,#89b4fa);white-space:nowrap;';t.textContent='';t.appendChild(document.createTextNode(text));t.insertAdjacentHTML('beforeend','<span onclick="this.parentElement.remove()" style="cursor:pointer;margin-left:0.2rem;font-size:1rem;line-height:1;opacity:0.7;">&times;</span>');c.insertBefore(t,i);}
@@ -976,9 +1054,9 @@ document.getElementById("kb-article-form").addEventListener("submit", function(e
 });
 </script>`, jsonMarshalStr(sanitiseText(article.Tags)), loginJS))
 
-    // Attachment upload/list/download/delete JS. Reads the hidden
-    // #kb-attachments-data JSON blob as its source of truth.
-    h.WriteString(fmt.Sprintf(`<script>
+	// Attachment upload/list/download/delete JS. Reads the hidden
+	// #kb-attachments-data JSON blob as its source of truth.
+	h.WriteString(fmt.Sprintf(`<script>
 var KB_ARTICLE_ID = %d;
 var KB_THUMB_URLS = [];
 function kbAttachIcon(ct) {
@@ -1133,15 +1211,17 @@ function kbDownloadAttachment(id) {
 }
 (function(){ if (document.getElementById('kb-attachments-list')) kbRenderAttachments(); })();
 </script>`, article.ID))
-    return json.Marshal(map[string]string{
-        "html":        h.String(),
-        "title":       "Edit KB Article",
-        "active_page": "kb-admin",
-    })
+	return json.Marshal(map[string]string{
+		"html":        h.String(),
+		"title":       "Edit KB Article",
+		"active_page": "kb-admin",
+	})
 }
 
 func (p *Plugin) handleAdminArticleDelete(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
-	if p.host == nil { return errorResponse(503, "host API not available") }
+	if p.host == nil {
+		return errorResponse(503, "host API not available")
+	}
 
 	params := articleParams{}
 	if err := json.Unmarshal(args, &params); err != nil {
@@ -1154,9 +1234,13 @@ func (p *Plugin) handleAdminArticleDelete(ctx context.Context, args json.RawMess
 	}
 
 	id, err := strconv.ParseInt(params.ID, 10, 64)
-    orgID := extractReqCtx(args).OrgID
-    if orgID == 0 { orgID = p.host.OrgID(ctx) }
-    if orgID == 0 { orgID = 1 }
+	orgID := extractReqCtx(args).OrgID
+	if orgID == 0 {
+		orgID = p.host.OrgID(ctx)
+	}
+	if orgID == 0 {
+		orgID = 1
+	}
 	rc := extractReqCtx(args)
 	rows, err := p.host.DBQuery(ctx,
 		"SELECT title FROM gk_kb_articles WHERE id = ? AND org_id = ?", id, orgID)
@@ -1177,7 +1261,9 @@ func (p *Plugin) handleAdminArticleDelete(ctx context.Context, args json.RawMess
 	p.deleteArticleAttachments(ctx, orgID, id)
 
 	_, err = p.host.DBExec(ctx, "DELETE FROM gk_kb_articles WHERE id = ? AND org_id = ?", id, orgID)
-	if err != nil { return internalError(ctx, p.host, 500, "delete article", err) }
+	if err != nil {
+		return internalError(ctx, p.host, 500, "delete article", err)
+	}
 
 	return json.Marshal(map[string]string{"status": "deleted"})
 }
@@ -1186,11 +1272,17 @@ func (p *Plugin) handleAdminArticleDelete(ctx context.Context, args json.RawMess
 // GET: lists all categories for the org with article counts.
 // POST: adds, renames, or deletes categories based on _action field.
 func (p *Plugin) handleAdminCategories(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
-	if p.host == nil { return errorResponse(503, "host API not available") }
+	if p.host == nil {
+		return errorResponse(503, "host API not available")
+	}
 	rc := extractReqCtx(args)
 	orgID := rc.OrgID
-	if orgID == 0 { orgID = p.host.OrgID(ctx) }
-	if orgID == 0 { orgID = 1 }
+	if orgID == 0 {
+		orgID = p.host.OrgID(ctx)
+	}
+	if orgID == 0 {
+		orgID = 1
+	}
 
 	// Check if this is a POST (action) or GET (list)
 	var action struct {
@@ -1242,8 +1334,12 @@ func (p *Plugin) handleAdminCategories(ctx context.Context, args json.RawMessage
 func (p *Plugin) handleAdminCategoryAction(ctx context.Context, orgID int64, action string, id int64, name string) (json.RawMessage, error) {
 	switch action {
 	case "add":
-		if name == "" { return errorResponse(400, "category name required") }
-		if len(name) > 100 { return errorResponse(400, "category name too long") }
+		if name == "" {
+			return errorResponse(400, "category name required")
+		}
+		if len(name) > 100 {
+			return errorResponse(400, "category name too long")
+		}
 		name = sanitiseText(name)
 		_, err := p.host.DBExec(ctx,
 			"INSERT INTO gk_kb_categories (org_id, name) VALUES (?, ?)",
@@ -1255,8 +1351,12 @@ func (p *Plugin) handleAdminCategoryAction(ctx context.Context, orgID int64, act
 		return json.Marshal(map[string]string{"status": "created"})
 
 	case "rename":
-		if name == "" { return errorResponse(400, "category name required") }
-		if id <= 0 { return errorResponse(400, "invalid category id") }
+		if name == "" {
+			return errorResponse(400, "category name required")
+		}
+		if id <= 0 {
+			return errorResponse(400, "invalid category id")
+		}
 		name = sanitiseText(name)
 		_, err := p.host.DBExec(ctx,
 			"UPDATE gk_kb_categories SET name = ? WHERE id = ? AND org_id = ?",
@@ -1267,11 +1367,15 @@ func (p *Plugin) handleAdminCategoryAction(ctx context.Context, orgID int64, act
 		return json.Marshal(map[string]string{"status": "renamed"})
 
 	case "delete":
-		if id <= 0 { return errorResponse(400, "invalid category id") }
+		if id <= 0 {
+			return errorResponse(400, "invalid category id")
+		}
 		_, err := p.host.DBExec(ctx,
 			"DELETE FROM gk_kb_categories WHERE id = ? AND org_id = ?",
 			id, orgID)
-		if err != nil { return internalError(ctx, p.host, 500, "delete category", err) }
+		if err != nil {
+			return internalError(ctx, p.host, 500, "delete category", err)
+		}
 		return json.Marshal(map[string]string{"status": "deleted"})
 
 	default:
@@ -1280,117 +1384,197 @@ func (p *Plugin) handleAdminCategoryAction(ctx context.Context, orgID int64, act
 }
 
 func (p *Plugin) handleAdminArticleUpdate(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
-    if p.host == nil { return errorResponse(503, "host API not available") }
-    var updateReq struct {
-        ID        int64  `json:"id"`
-        Title     string `json:"title,omitempty"`
-        Summary   string `json:"summary,omitempty"`
-        Content   string `json:"content,omitempty"`
-        Category  string `json:"category,omitempty"`
-        Visibility string `json:"visibility,omitempty"`
-        Status    string `json:"status,omitempty"`
-        Author    string `json:"author,omitempty"`
-        Tags      string `json:"tags,omitempty"`
-    }
-    if err := json.Unmarshal(args, &updateReq); err != nil {
-        return errorResponse(400, "invalid request: "+err.Error())
-    }
+	if p.host == nil {
+		return errorResponse(503, "host API not available")
+	}
+	var updateReq struct {
+		ID         int64  `json:"id"`
+		Title      string `json:"title,omitempty"`
+		Summary    string `json:"summary,omitempty"`
+		Content    string `json:"content,omitempty"`
+		Category   string `json:"category,omitempty"`
+		Visibility string `json:"visibility,omitempty"`
+		Status     string `json:"status,omitempty"`
+		Author     string `json:"author,omitempty"`
+		Tags       string `json:"tags,omitempty"`
+	}
+	if err := json.Unmarshal(args, &updateReq); err != nil {
+		return errorResponse(400, "invalid request: "+err.Error())
+	}
 	// Default author to the session login when the form doesn't send one.
 	rc := extractReqCtx(args)
 	if updateReq.Author == "" {
 		updateReq.Author = rc.Login
 	}
-    // Sanitise at storage time (defence-in-depth).
-    updateReq.Content = sanitiseHTML(updateReq.Content)
-    updateReq.Title = sanitiseText(updateReq.Title)
-    updateReq.Summary = sanitiseText(updateReq.Summary)
-    updateReq.Category = sanitiseText(updateReq.Category)
-    updateReq.Author = sanitiseText(updateReq.Author)
-    updateReq.Tags = sanitiseText(updateReq.Tags)
+	// Sanitise at storage time (defence-in-depth).
+	updateReq.Content = sanitiseHTML(updateReq.Content)
+	updateReq.Title = sanitiseText(updateReq.Title)
+	updateReq.Summary = sanitiseText(updateReq.Summary)
+	updateReq.Category = sanitiseText(updateReq.Category)
+	updateReq.Author = sanitiseText(updateReq.Author)
+	updateReq.Tags = sanitiseText(updateReq.Tags)
 
-    // Validate visibility and status against allowed enum values (F6).
-    allowedVis := map[string]bool{"public": true, "agent": true}
-    allowedStatus := map[string]bool{"draft": true, "published": true, "archived": true}
-    if updateReq.Visibility != "" && !allowedVis[updateReq.Visibility] {
-        return errorResponse(400, "invalid visibility: must be 'public' or 'agent'")
-    }
-    if updateReq.Status != "" && !allowedStatus[updateReq.Status] {
-        return errorResponse(400, "invalid status: must be 'draft', 'published', or 'archived'")
-    }
+	// Validate visibility and status against allowed enum values (F6).
+	allowedVis := map[string]bool{"public": true, "agent": true}
+	allowedStatus := map[string]bool{"draft": true, "published": true, "archived": true}
+	if updateReq.Visibility != "" && !allowedVis[updateReq.Visibility] {
+		return errorResponse(400, "invalid visibility: must be 'public' or 'agent'")
+	}
+	if updateReq.Status != "" && !allowedStatus[updateReq.Status] {
+		return errorResponse(400, "invalid status: must be 'draft', 'published', or 'archived'")
+	}
 
-    orgID := extractReqCtx(args).OrgID
-    if orgID == 0 { orgID = p.host.OrgID(ctx) }
-    if orgID == 0 { orgID = 1 }
-    if updateReq.ID < 0 { return errorResponse(400, "invalid article id: ID must not be negative") }
-    existing, err := p.host.DBQuery(ctx, "SELECT id FROM gk_kb_articles WHERE id = ? AND org_id = ?", updateReq.ID, orgID)
-    if err != nil { return internalError(ctx, p.host, 500, "check article", err) }
-    if len(existing) == 0 {
-        slug := updateReq.Title
-        if slug == "" { slug = fmt.Sprintf("article-%d", time.Now().Unix()) }
-        status := updateReq.Status
-        if status == "" { status = "published" }
-        vis := updateReq.Visibility
-        if vis == "" { vis = "public" }
-        // Auto-increment insert only (F4: no caller-supplied ID).
-        _, err := p.host.DBExec(ctx, `INSERT INTO gk_kb_articles
+	orgID := extractReqCtx(args).OrgID
+	if orgID == 0 {
+		orgID = p.host.OrgID(ctx)
+	}
+	if orgID == 0 {
+		orgID = 1
+	}
+	if updateReq.ID < 0 {
+		return errorResponse(400, "invalid article id: ID must not be negative")
+	}
+	existing, err := p.host.DBQuery(ctx, "SELECT id FROM gk_kb_articles WHERE id = ? AND org_id = ?", updateReq.ID, orgID)
+	if err != nil {
+		return internalError(ctx, p.host, 500, "check article", err)
+	}
+	if len(existing) == 0 {
+		slug := updateReq.Title
+		if slug == "" {
+			slug = fmt.Sprintf("article-%d", time.Now().Unix())
+		}
+		status := updateReq.Status
+		if status == "" {
+			status = "published"
+		}
+		vis := updateReq.Visibility
+		if vis == "" {
+			vis = "public"
+		}
+		// Auto-increment insert only (F4: no caller-supplied ID).
+		_, err := p.host.DBExec(ctx, `INSERT INTO gk_kb_articles
             (org_id, title, slug, summary, content, category, visibility, author, status, tags)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            orgID, updateReq.Title, slug, updateReq.Summary,
-            updateReq.Content, updateReq.Category, vis,
-            updateReq.Author, status, updateReq.Tags)
-        if err != nil { return internalError(ctx, p.host, 500, "insert article", err) }
-        return json.Marshal(map[string]string{"status": "created"})
-    }
-    var sets []string
-    var vals []any
-    if updateReq.Title != "" { sets = append(sets, "title = ?"); vals = append(vals, updateReq.Title) }
-    if updateReq.Summary != "" { sets = append(sets, "summary = ?"); vals = append(vals, updateReq.Summary) }
-    if updateReq.Content != "" { sets = append(sets, "content = ?"); vals = append(vals, updateReq.Content) }
-    if updateReq.Category != "" { sets = append(sets, "category = ?"); vals = append(vals, updateReq.Category) }
-    if updateReq.Visibility != "" { sets = append(sets, "visibility = ?"); vals = append(vals, updateReq.Visibility) }
-    if updateReq.Status != "" { sets = append(sets, "status = ?"); vals = append(vals, updateReq.Status) }
-    if updateReq.Author != "" { sets = append(sets, "author = ?"); vals = append(vals, updateReq.Author) }
-    if updateReq.Tags != "" { sets = append(sets, "tags = ?"); vals = append(vals, updateReq.Tags) }
-    if len(sets) == 0 { return errorResponse(400, "no fields to update") }
-    sets = append(sets, "updated_at = CURRENT_TIMESTAMP")
-    vals = append(vals, updateReq.ID)
-    vals = append(vals, orgID)
-    query := fmt.Sprintf("UPDATE gk_kb_articles SET %s WHERE id = ? AND org_id = ?", strings.Join(sets, ", "))
-    _, err = p.host.DBExec(ctx, query, vals...)
-    if err != nil { return internalError(ctx, p.host, 500, "update article", err) }
-    return json.Marshal(map[string]string{"status": "updated"})
+			orgID, updateReq.Title, slug, updateReq.Summary,
+			updateReq.Content, updateReq.Category, vis,
+			updateReq.Author, status, updateReq.Tags)
+		if err != nil {
+			return internalError(ctx, p.host, 500, "insert article", err)
+		}
+		return json.Marshal(map[string]string{"status": "created"})
+	}
+	var sets []string
+	var vals []any
+	if updateReq.Title != "" {
+		sets = append(sets, "title = ?")
+		vals = append(vals, updateReq.Title)
+	}
+	if updateReq.Summary != "" {
+		sets = append(sets, "summary = ?")
+		vals = append(vals, updateReq.Summary)
+	}
+	if updateReq.Content != "" {
+		sets = append(sets, "content = ?")
+		vals = append(vals, updateReq.Content)
+	}
+	if updateReq.Category != "" {
+		sets = append(sets, "category = ?")
+		vals = append(vals, updateReq.Category)
+	}
+	if updateReq.Visibility != "" {
+		sets = append(sets, "visibility = ?")
+		vals = append(vals, updateReq.Visibility)
+	}
+	if updateReq.Status != "" {
+		sets = append(sets, "status = ?")
+		vals = append(vals, updateReq.Status)
+	}
+	if updateReq.Author != "" {
+		sets = append(sets, "author = ?")
+		vals = append(vals, updateReq.Author)
+	}
+	if updateReq.Tags != "" {
+		sets = append(sets, "tags = ?")
+		vals = append(vals, updateReq.Tags)
+	}
+	if len(sets) == 0 {
+		return errorResponse(400, "no fields to update")
+	}
+	sets = append(sets, "updated_at = CURRENT_TIMESTAMP")
+	vals = append(vals, updateReq.ID)
+	vals = append(vals, orgID)
+	query := fmt.Sprintf("UPDATE gk_kb_articles SET %s WHERE id = ? AND org_id = ?", strings.Join(sets, ", "))
+	_, err = p.host.DBExec(ctx, query, vals...)
+	if err != nil {
+		return internalError(ctx, p.host, 500, "update article", err)
+	}
+	return json.Marshal(map[string]string{"status": "updated"})
 }
 
-
-
 func (p *Plugin) handleCustomerList(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
-	if p.host == nil { return errorResponse(503, "host API not available") }
+	if p.host == nil {
+		return errorResponse(503, "host API not available")
+	}
 	rc := extractReqCtx(args)
 	orgID := rc.OrgID
-	if orgID == 0 { orgID = p.host.OrgID(ctx) }
-	if orgID == 0 { orgID = 1 }
-	if orgID == 0 { p.host.Log(ctx, "warn", "kb: customer list no org", map[string]any{"user": rc.Login, "role": rc.Role}) }
-	page := 1; perPage := 15
-	var raw struct { Page int `json:"page"`; Q string `json:"q"`; Category string `json:"category"` }
-	if len(args) > 0 { _ = json.Unmarshal(args, &raw) }
-	if raw.Page > 0 { page = raw.Page }
+	if orgID == 0 {
+		orgID = p.host.OrgID(ctx)
+	}
+	if orgID == 0 {
+		orgID = 1
+	}
+	if orgID == 0 {
+		p.host.Log(ctx, "warn", "kb: customer list no org", map[string]any{"user": rc.Login, "role": rc.Role})
+	}
+	page := 1
+	perPage := 15
+	var raw struct {
+		Page     int    `json:"page"`
+		Q        string `json:"q"`
+		Category string `json:"category"`
+	}
+	if len(args) > 0 {
+		_ = json.Unmarshal(args, &raw)
+	}
+	if raw.Page > 0 {
+		page = raw.Page
+	}
 	query := strings.TrimSpace(raw.Q)
 	filterCat := strings.TrimSpace(raw.Category)
 	offset := (page - 1) * perPage
 
 	baseWhere := "org_id = ? AND status = 'published' AND visibility = 'public'"
-	conds := []string{baseWhere}; a := []any{orgID}
-	if query != "" { like := "%" + escapeLike(query) + "%"; conds = append(conds, "(title LIKE ? OR summary LIKE ?)"); a = append(a, like, like) }
-	if filterCat != "" { conds = append(conds, "category = ?"); a = append(a, filterCat) }
+	conds := []string{baseWhere}
+	a := []any{orgID}
+	if query != "" {
+		like := "%" + escapeLike(query) + "%"
+		conds = append(conds, "(title LIKE ? OR summary LIKE ?)")
+		a = append(a, like, like)
+	}
+	if filterCat != "" {
+		conds = append(conds, "category = ?")
+		a = append(a, filterCat)
+	}
 	where := strings.Join(conds, " AND ")
 	a = append(a, perPage, offset)
 
 	rows, err := p.host.DBQuery(ctx, "SELECT id, title, summary, category, updated_at FROM gk_kb_articles WHERE "+where+" ORDER BY updated_at DESC LIMIT ? OFFSET ?", a...)
-	if err != nil { return internalError(ctx, p.host, 500, "query articles", err) }
-	type articleRow struct { ID int64; Title string; Summary string; Category string; DateStr string }
+	if err != nil {
+		return internalError(ctx, p.host, 500, "query articles", err)
+	}
+	type articleRow struct {
+		ID       int64
+		Title    string
+		Summary  string
+		Category string
+		DateStr  string
+	}
 	articles := make([]articleRow, 0, len(rows))
 	for _, row := range rows {
-		ds := toString(row["updated_at"]); if len(ds) >= 10 { ds = ds[:10] }
+		ds := toString(row["updated_at"])
+		if len(ds) >= 10 {
+			ds = ds[:10]
+		}
 		articles = append(articles, articleRow{
 			ID: toInt64(row["id"]), Title: sanitiseText(toString(row["title"])), Summary: sanitiseText(toString(row["summary"])),
 			Category: sanitiseText(toString(row["category"])), DateStr: ds,
@@ -1398,30 +1582,39 @@ func (p *Plugin) handleCustomerList(ctx context.Context, args json.RawMessage) (
 	}
 
 	ca := []any{orgID}
-	if query != "" { like := "%" + escapeLike(query) + "%"; ca = append(ca, like, like) }
-	if filterCat != "" { ca = append(ca, filterCat) }
+	if query != "" {
+		like := "%" + escapeLike(query) + "%"
+		ca = append(ca, like, like)
+	}
+	if filterCat != "" {
+		ca = append(ca, filterCat)
+	}
 	cr, err := p.host.DBQuery(ctx, "SELECT COUNT(*) as total FROM gk_kb_articles WHERE "+where, ca...)
 	totalCount := 0
-	if err == nil && len(cr) > 0 { totalCount = int(toInt64(cr[0]["total"])) }
+	if err == nil && len(cr) > 0 {
+		totalCount = int(toInt64(cr[0]["total"]))
+	}
 	totalPages := (totalCount + perPage - 1) / perPage
-	if totalPages < 1 { totalPages = 1 }
+	if totalPages < 1 {
+		totalPages = 1
+	}
 
 	catRows, _ := p.host.DBQuery(ctx, "SELECT name FROM gk_kb_categories WHERE org_id = ? ORDER BY name", orgID)
 	categories := make([]string, 0, len(catRows))
-	for _, r := range catRows { categories = append(categories, toString(r["name"])) }
+	for _, r := range catRows {
+		categories = append(categories, toString(r["name"]))
+	}
 
 	html, err := p.render("kb_list.pongo2", ctx, map[string]any{
 		"articles": articles, "page": page, "totalPages": totalPages, "totalCount": totalCount,
 		"Query": query, "Categories": categories, "FilterCategory": filterCat,
 		"IsAdmin": false, "IsAgent": false, "IsCustomer": true,
 	})
-	if err != nil { return internalError(ctx, p.host, 500, "render template", err) }
+	if err != nil {
+		return internalError(ctx, p.host, 500, "render template", err)
+	}
 	return json.Marshal(map[string]string{"html": html})
 }
-
-
-
-
 
 // handleCustomerArticle renders a single KB article for customer viewing.
 // Only shows articles with visibility = 'public'.
@@ -1441,33 +1634,51 @@ type sidebarItem struct {
 }
 
 func (p *Plugin) renderArticleDetail(ctx context.Context, args json.RawMessage, isAgent bool) (json.RawMessage, error) {
-	if p.host == nil { return errorResponse(503, "host API not available") }
+	if p.host == nil {
+		return errorResponse(503, "host API not available")
+	}
 
 	rc := extractReqCtx(args)
 	orgID := rc.OrgID
-	if orgID == 0 { orgID = p.host.OrgID(ctx) }
-	if orgID == 0 { orgID = 1 }
+	if orgID == 0 {
+		orgID = p.host.OrgID(ctx)
+	}
+	if orgID == 0 {
+		orgID = 1
+	}
 
 	var idStr string
-	_ = json.Unmarshal(args, &struct{ ID *string `json:"id"` }{ID: &idStr})
+	_ = json.Unmarshal(args, &struct {
+		ID *string `json:"id"`
+	}{ID: &idStr})
 	if idStr == "" {
 		var raw map[string]any
 		_ = json.Unmarshal(args, &raw)
-		if v, ok := raw["id"]; ok { idStr = fmt.Sprintf("%v", v) }
+		if v, ok := raw["id"]; ok {
+			idStr = fmt.Sprintf("%v", v)
+		}
 	}
 	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil || id < 1 { return errorResponse(400, "invalid article id") }
+	if err != nil || id < 1 {
+		return errorResponse(400, "invalid article id")
+	}
 
 	// Fetch article
 	query := "SELECT id, title, summary, content, category, visibility, author, tags, updated_at FROM gk_kb_articles WHERE id = ? AND org_id = ? AND status = 'published'"
 	query += rc.visibilityClause()
 	rows, err := p.host.DBQuery(ctx, query, id, orgID)
-	if err != nil { return internalError(ctx, p.host, 500, "query article", err) }
-	if len(rows) == 0 { return errorResponse(404, "article not found") }
+	if err != nil {
+		return internalError(ctx, p.host, 500, "query article", err)
+	}
+	if len(rows) == 0 {
+		return errorResponse(404, "article not found")
+	}
 
 	row := rows[0]
 	dateStr := toString(row["updated_at"])
-	if len(dateStr) >= 10 { dateStr = dateStr[:10] }
+	if len(dateStr) >= 10 {
+		dateStr = dateStr[:10]
+	}
 
 	// Fetch related articles (same category, excluding current)
 	relQuery := "SELECT id, title, updated_at FROM gk_kb_articles WHERE org_id = ? AND category = ? AND id != ? AND status = 'published'"
@@ -1477,7 +1688,9 @@ func (p *Plugin) renderArticleDetail(ctx context.Context, args json.RawMessage, 
 	related := make([]sidebarItem, 0, len(relRows))
 	for _, r := range relRows {
 		ds := toString(r["updated_at"])
-		if len(ds) >= 10 { ds = ds[:10] }
+		if len(ds) >= 10 {
+			ds = ds[:10]
+		}
 		related = append(related, sidebarItem{
 			ID:      toInt64(r["id"]),
 			Title:   sanitiseText(toString(r["title"])),
@@ -1493,7 +1706,9 @@ func (p *Plugin) renderArticleDetail(ctx context.Context, args json.RawMessage, 
 	recent := make([]sidebarItem, 0, len(recRows))
 	for _, r := range recRows {
 		ds := toString(r["updated_at"])
-		if len(ds) >= 10 { ds = ds[:10] }
+		if len(ds) >= 10 {
+			ds = ds[:10]
+		}
 		recent = append(recent, sidebarItem{
 			ID:      toInt64(r["id"]),
 			Title:   sanitiseText(toString(r["title"])),
@@ -1515,45 +1730,90 @@ func (p *Plugin) renderArticleDetail(ctx context.Context, args json.RawMessage, 
 		"RecentArticles":  recent,
 		"Attachments":     p.fetchAttachments(ctx, orgID, id),
 	})
-	if err != nil { return internalError(ctx, p.host, 500, "render template", err) }
+	if err != nil {
+		return internalError(ctx, p.host, 500, "render template", err)
+	}
 	return json.Marshal(map[string]string{"html": html})
 }
 
 func (p *Plugin) handleAgentList(ctx context.Context, args json.RawMessage) (json.RawMessage, error) {
-	if p.host == nil { return errorResponse(503, "host API not available") }
+	if p.host == nil {
+		return errorResponse(503, "host API not available")
+	}
 	rc := extractReqCtx(args)
 	orgID := rc.OrgID
-	if orgID == 0 { orgID = p.host.OrgID(ctx) }
-	if orgID == 0 { orgID = 1 }
-	if orgID == 0 { p.host.Log(ctx, "warn", "kb: agent list no org", map[string]any{"user": rc.Login, "role": rc.Role}) }
-	page := 1; perPage := 15
-	var raw struct {
-		Page int `json:"page"`; Q string `json:"q"`; Category string `json:"category"`; Scope string `json:"scope"`; Status string `json:"status"`
+	if orgID == 0 {
+		orgID = p.host.OrgID(ctx)
 	}
-	if len(args) > 0 { _ = json.Unmarshal(args, &raw) }
-	if raw.Page > 0 { page = raw.Page }
+	if orgID == 0 {
+		orgID = 1
+	}
+	if orgID == 0 {
+		p.host.Log(ctx, "warn", "kb: agent list no org", map[string]any{"user": rc.Login, "role": rc.Role})
+	}
+	page := 1
+	perPage := 15
+	var raw struct {
+		Page     int    `json:"page"`
+		Q        string `json:"q"`
+		Category string `json:"category"`
+		Scope    string `json:"scope"`
+		Status   string `json:"status"`
+	}
+	if len(args) > 0 {
+		_ = json.Unmarshal(args, &raw)
+	}
+	if raw.Page > 0 {
+		page = raw.Page
+	}
 	query := strings.TrimSpace(raw.Q)
 	filterCat := strings.TrimSpace(raw.Category)
 	filterScope := strings.TrimSpace(raw.Scope)
 	filterStatus := strings.TrimSpace(raw.Status)
 	offset := (page - 1) * perPage
 
-	conds := []string{"org_id = ?", "status = 'published'"}; a := []any{orgID}
-	if query != "" { like := "%" + escapeLike(query) + "%"; conds = append(conds, "(title LIKE ? OR summary LIKE ?)"); a = append(a, like, like) }
-	if filterCat != "" { conds = append(conds, "category = ?"); a = append(a, filterCat) }
-	if filterScope != "" { conds = append(conds, "visibility = ?"); a = append(a, filterScope) }
-	if filterStatus != "" { conds = append(conds, "status = ?"); a = append(a, filterStatus) }
+	conds := []string{"org_id = ?", "status = 'published'"}
+	a := []any{orgID}
+	if query != "" {
+		like := "%" + escapeLike(query) + "%"
+		conds = append(conds, "(title LIKE ? OR summary LIKE ?)")
+		a = append(a, like, like)
+	}
+	if filterCat != "" {
+		conds = append(conds, "category = ?")
+		a = append(a, filterCat)
+	}
+	if filterScope != "" {
+		conds = append(conds, "visibility = ?")
+		a = append(a, filterScope)
+	}
+	if filterStatus != "" {
+		conds = append(conds, "status = ?")
+		a = append(a, filterStatus)
+	}
 	where := " WHERE " + strings.Join(conds, " AND ")
 	a = append(a, perPage, offset)
 
 	rows, err := p.host.DBQuery(ctx, "SELECT id, title, summary, category, visibility, status, author, updated_at FROM gk_kb_articles"+where+" ORDER BY updated_at DESC LIMIT ? OFFSET ?", a...)
-	if err != nil { return internalError(ctx, p.host, 500, "query articles", err) }
+	if err != nil {
+		return internalError(ctx, p.host, 500, "query articles", err)
+	}
 	type articleRow struct {
-		ID int64; Title string; Summary string; Category string; Visibility string; Status string; Author string; DateStr string
+		ID         int64
+		Title      string
+		Summary    string
+		Category   string
+		Visibility string
+		Status     string
+		Author     string
+		DateStr    string
 	}
 	articles := make([]articleRow, 0, len(rows))
 	for _, row := range rows {
-		ds := toString(row["updated_at"]); if len(ds) >= 10 { ds = ds[:10] }
+		ds := toString(row["updated_at"])
+		if len(ds) >= 10 {
+			ds = ds[:10]
+		}
 		articles = append(articles, articleRow{
 			ID: toInt64(row["id"]), Title: sanitiseText(toString(row["title"])), Summary: sanitiseText(toString(row["summary"])),
 			Category: sanitiseText(toString(row["category"])), Visibility: toString(row["visibility"]),
@@ -1562,28 +1822,41 @@ func (p *Plugin) handleAgentList(ctx context.Context, args json.RawMessage) (jso
 	}
 
 	ca := []any{orgID}
-	if query != "" { like := "%" + escapeLike(query) + "%"; ca = append(ca, like, like) }
-	if filterCat != "" { ca = append(ca, filterCat) }
-	if filterScope != "" { ca = append(ca, filterScope) }
-	if filterStatus != "" { ca = append(ca, filterStatus) }
+	if query != "" {
+		like := "%" + escapeLike(query) + "%"
+		ca = append(ca, like, like)
+	}
+	if filterCat != "" {
+		ca = append(ca, filterCat)
+	}
+	if filterScope != "" {
+		ca = append(ca, filterScope)
+	}
+	if filterStatus != "" {
+		ca = append(ca, filterStatus)
+	}
 	cr, err := p.host.DBQuery(ctx, "SELECT COUNT(*) as total FROM gk_kb_articles"+where, ca...)
 	totalCount := 0
-	if err == nil && len(cr) > 0 { totalCount = int(toInt64(cr[0]["total"])) }
+	if err == nil && len(cr) > 0 {
+		totalCount = int(toInt64(cr[0]["total"]))
+	}
 	totalPages := (totalCount + perPage - 1) / perPage
-	if totalPages < 1 { totalPages = 1 }
+	if totalPages < 1 {
+		totalPages = 1
+	}
 
 	catRows, _ := p.host.DBQuery(ctx, "SELECT name FROM gk_kb_categories WHERE org_id = ? ORDER BY name", orgID)
 	categories := make([]string, 0, len(catRows))
-	for _, r := range catRows { categories = append(categories, toString(r["name"])) }
+	for _, r := range catRows {
+		categories = append(categories, toString(r["name"]))
+	}
 	html, err := p.render("kb_list.pongo2", ctx, map[string]any{
 		"articles": articles, "page": page, "totalPages": totalPages, "totalCount": totalCount,
 		"Query": query, "Categories": categories, "FilterCategory": filterCat, "FilterScope": filterScope, "FilterStatus": filterStatus,
 		"IsAdmin": false, "IsAgent": true, "IsCustomer": false,
 	})
-	if err != nil { return internalError(ctx, p.host, 500, "render template", err) }
+	if err != nil {
+		return internalError(ctx, p.host, 500, "render template", err)
+	}
 	return json.Marshal(map[string]string{"html": html})
 }
-
-
-
-

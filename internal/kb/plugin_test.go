@@ -101,10 +101,10 @@ func TestInitTemplates(t *testing.T) {
 	templateMu.RLock()
 	defer templateMu.RUnlock()
 	want := map[string]bool{
-		"kb_list.pongo2":                true,
-		"article_detail.pongo2":         true,
-		"admin_kb_categories.pongo2":    true,
-		"widget_recent.pongo2":          true,
+		"kb_list.pongo2":             true,
+		"article_detail.pongo2":      true,
+		"admin_kb_categories.pongo2": true,
+		"widget_recent.pongo2":       true,
 	}
 
 	for name := range want {
@@ -116,28 +116,28 @@ func TestInitTemplates(t *testing.T) {
 	// Quick render smoke test — render each template with minimal context
 	for name := range compiledTemplates {
 		_, err := renderTemplate(name, map[string]any{
-			"IsAdmin":        true,
-			"IsAgent":        false,
-			"IsCustomer":     false,
-			"articles":       []any{},
-			"page":           1,
-			"totalPages":     1,
-			"totalCount":     0,
-			"Title":          "Test",
-			"Content":        "<p>test</p>",
-			"Summary":        "test summary",
-			"Category":       "test",
-			"Visibility":     "public",
-			"Author":         "tester",
-			"Tags":           []string{},
-			"DateStr":        "2025-01-01",
-			"Query":          "",
-			"FilterCategory": "",
-			"FilterScope":    "",
-			"FilterStatus":   "",
-			"Categories":     []string{},
-			"RelatedArticles":  []any{},
-			"RecentArticles":   []any{},
+			"IsAdmin":         true,
+			"IsAgent":         false,
+			"IsCustomer":      false,
+			"articles":        []any{},
+			"page":            1,
+			"totalPages":      1,
+			"totalCount":      0,
+			"Title":           "Test",
+			"Content":         "<p>test</p>",
+			"Summary":         "test summary",
+			"Category":        "test",
+			"Visibility":      "public",
+			"Author":          "tester",
+			"Tags":            []string{},
+			"DateStr":         "2025-01-01",
+			"Query":           "",
+			"FilterCategory":  "",
+			"FilterScope":     "",
+			"FilterStatus":    "",
+			"Categories":      []string{},
+			"RelatedArticles": []any{},
+			"RecentArticles":  []any{},
 		})
 		if err != nil {
 			t.Errorf("renderTemplate(%s) failed: %v", name, err)

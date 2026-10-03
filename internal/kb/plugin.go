@@ -71,34 +71,34 @@ func (p *Plugin) GKRegister() (*plugin.GKRegistration, error) {
 				Middleware:  []string{"admin"},
 				Description: "Import OTRS FAQ articles (admin only)",
 			},
-		{
-			Method:      "GET",
-			Path:        "/customer/kb",
-			Handler:     "handleCustomerList",
-			Middleware:  []string{"auth"},
-			Description: "List KB articles for customers (public visibility only)",
-		},
-		{
-			Method:      "GET",
-			Path:        "/customer/kb/article/:id",
-			Handler:     "handleCustomerArticle",
-			Middleware:  []string{"auth"},
-			Description: "View a single KB article (customer-facing HTML)",
-		},
-		{
-			Method:      "GET",
-			Path:        "/agent/kb",
-			Handler:     "handleAgentList",
-			Middleware:  []string{"auth"},
-			Description: "List KB articles for agents (public/org/agent visibility)",
-		},
-		{
-			Method:      "GET",
-			Path:        "/agent/kb/article/:id",
-			Handler:     "handleAgentArticle",
-			Middleware:  []string{"auth"},
-			Description: "View a single KB article for agents",
-		},
+			{
+				Method:      "GET",
+				Path:        "/customer/kb",
+				Handler:     "handleCustomerList",
+				Middleware:  []string{"auth"},
+				Description: "List KB articles for customers (public visibility only)",
+			},
+			{
+				Method:      "GET",
+				Path:        "/customer/kb/article/:id",
+				Handler:     "handleCustomerArticle",
+				Middleware:  []string{"auth"},
+				Description: "View a single KB article (customer-facing HTML)",
+			},
+			{
+				Method:      "GET",
+				Path:        "/agent/kb",
+				Handler:     "handleAgentList",
+				Middleware:  []string{"auth"},
+				Description: "List KB articles for agents (public/org/agent visibility)",
+			},
+			{
+				Method:      "GET",
+				Path:        "/agent/kb/article/:id",
+				Handler:     "handleAgentArticle",
+				Middleware:  []string{"auth"},
+				Description: "View a single KB article for agents",
+			},
 			{
 				Method:      "GET",
 				Path:        "/admin/kb",
@@ -127,27 +127,27 @@ func (p *Plugin) GKRegister() (*plugin.GKRegistration, error) {
 				Middleware:  []string{"admin"},
 				Description: "Delete KB article for admin management",
 			},
-		{
-			Method:      "POST",
-			Path:        "/admin/kb/article/:id/attachments",
-			Handler:     "handleAttachmentUpload",
-			Middleware:  []string{"admin"},
-			Description: "Upload file attachment to KB article",
-		},
-		{
-			Method:      "DELETE",
-			Path:        "/admin/kb/article/:id/attachments/:aid",
-			Handler:     "handleAttachmentDelete",
-			Middleware:  []string{"admin"},
-			Description: "Delete KB article attachment",
-		},
-		{
-			Method:      "GET",
-			Path:        "/kb/attachment/:aid",
-			Handler:     "handleAttachmentDownload",
-			Middleware:  []string{"auth"},
-			Description: "Download KB article attachment (visibility-checked)",
-		},
+			{
+				Method:      "POST",
+				Path:        "/admin/kb/article/:id/attachments",
+				Handler:     "handleAttachmentUpload",
+				Middleware:  []string{"admin"},
+				Description: "Upload file attachment to KB article",
+			},
+			{
+				Method:      "DELETE",
+				Path:        "/admin/kb/article/:id/attachments/:aid",
+				Handler:     "handleAttachmentDelete",
+				Middleware:  []string{"admin"},
+				Description: "Delete KB article attachment",
+			},
+			{
+				Method:      "GET",
+				Path:        "/kb/attachment/:aid",
+				Handler:     "handleAttachmentDownload",
+				Middleware:  []string{"auth"},
+				Description: "Download KB article attachment (visibility-checked)",
+			},
 			{
 				Method:      "GET",
 				Path:        "/admin/kb/categories",
@@ -195,8 +195,8 @@ func (p *Plugin) GKRegister() (*plugin.GKRegistration, error) {
 				ID:          "kb-recent",
 				Title:       "Recent KB Articles",
 				Description: "Shows recently published knowledge base articles",
-		Handler:     "kb_widget_recent",
-		Location:    "dashboard",
+				Handler:     "kb_widget_recent",
+				Location:    "dashboard",
 				Size:        "medium",
 				Refreshable: true,
 				RefreshSec:  300,
@@ -225,6 +225,7 @@ func (p *Plugin) GKRegister() (*plugin.GKRegistration, error) {
 		},
 	}, nil
 }
+
 // InitWithHost receives the HostAPI from the platform and brings the KB
 // schema up to the current version before the plugin serves requests.
 func (p *Plugin) InitWithHost(config map[string]string, host plugin.HostAPI) error {

@@ -100,20 +100,20 @@ func (p *Plugin) handleAttachmentUpload(ctx context.Context, args json.RawMessag
 		return errorResponse(400, "invalid request: "+err.Error())
 	}
 
-    // If id wasn't in the JSON body, try URL path params (pasted images from
-    // TipTap send id via the URL rather than the POST body).
-    if req.ID == "" {
-        raw := make(map[string]interface{})
-        if err := json.Unmarshal(args, &raw); err == nil {
-            if params, ok := raw["params"].(map[string]interface{}); ok {
-                if pid, ok := params["id"]; ok {
-                    if s, ok := pid.(string); ok {
-                        req.ID = s
-                    }
-                }
-            }
-        }
-    }
+	// If id wasn't in the JSON body, try URL path params (pasted images from
+	// TipTap send id via the URL rather than the POST body).
+	if req.ID == "" {
+		raw := make(map[string]interface{})
+		if err := json.Unmarshal(args, &raw); err == nil {
+			if params, ok := raw["params"].(map[string]interface{}); ok {
+				if pid, ok := params["id"]; ok {
+					if s, ok := pid.(string); ok {
+						req.ID = s
+					}
+				}
+			}
+		}
+	}
 
 	rc := extractReqCtx(args)
 	orgID := rc.OrgID

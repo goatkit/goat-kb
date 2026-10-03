@@ -56,8 +56,8 @@ func TestTemplatesHaveNoHardcodedEnglish(t *testing.T) {
 			// Strip everything that's allowed: {{ }}, {% %}, CSS, JS, comments, tags, entities
 			visible := src
 			visible = pongoExpr.ReplaceAllString(visible, "")
-		visible = pongoCtrl.ReplaceAllString(visible, "")
-		visible = regexp.MustCompile(`(?s)\{#.*?#\}`).ReplaceAllString(visible, "")
+			visible = pongoCtrl.ReplaceAllString(visible, "")
+			visible = regexp.MustCompile(`(?s)\{#.*?#\}`).ReplaceAllString(visible, "")
 			visible = styleBlock.ReplaceAllString(visible, "")
 			// Capture script content for check 3 before removing
 			visible = scriptBlock.ReplaceAllString(visible, "")

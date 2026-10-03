@@ -31,8 +31,8 @@ type otrsFAQItem struct {
 	Author   string `xml:"Author" json:"author"`
 	Created  string `xml:"Created" json:"created"`
 	Changed  string `xml:"Changed" json:"changed"`
-	ValidID   int    `xml:"ValidID" json:"valid_id"`
-	State     string `xml:"State" json:"state"`
+	ValidID  int    `xml:"ValidID" json:"valid_id"`
+	State    string `xml:"State" json:"state"`
 	// FAQID is the source-system identifier, used for idempotency.
 	FAQID string `xml:"FAQID" json:"faq_id"`
 	// Language is optional; ignored for now but parsed so the importer
@@ -43,8 +43,8 @@ type otrsFAQItem struct {
 // otrsFAQExport is the top-level OTRS FAQ export document. The root can be
 // <FAQExport>, <FAQData>, or a bare list of <FAQItem>. We accept any of these.
 type otrsFAQExport struct {
-	XMLName xml.Name       `xml:"FAQExport" json:"-"`
-	Items   []otrsFAQItem  `xml:"FAQItem" json:"items"`
+	XMLName xml.Name      `xml:"FAQExport" json:"-"`
+	Items   []otrsFAQItem `xml:"FAQItem" json:"items"`
 	// Alternate root: <FAQData><Item>...</Item></FAQData>
 	ItemsAlt []otrsFAQItem `xml:"Item" json:"items_alt"`
 }

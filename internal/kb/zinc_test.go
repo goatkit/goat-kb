@@ -84,7 +84,7 @@ func (h *fakeHTTPHost) buildSearchResponse(queryBody []byte) []byte {
 			Bool struct {
 				Filter []struct {
 					Term struct {
-						OrgID  int64 `json:"org_id"`
+						OrgID  int64  `json:"org_id"`
 						Status string `json:"status"`
 					} `json:"term"`
 				} `json:"filter"`
@@ -473,13 +473,13 @@ func TestBasicAuth(t *testing.T) {
 
 func TestBase64Encode(t *testing.T) {
 	cases := map[string]string{
-		"":        "",
-		"f":       "Zg==",
-		"fo":      "Zm8=",
-		"foo":     "Zm9v",
-		"foob":    "Zm9vYg==",
-		"fooba":   "Zm9vYmE=",
-		"foobar":  "Zm9vYmFy",
+		"":       "",
+		"f":      "Zg==",
+		"fo":     "Zm8=",
+		"foo":    "Zm9v",
+		"foob":   "Zm9vYg==",
+		"fooba":  "Zm9vYmE=",
+		"foobar": "Zm9vYmFy",
 	}
 	for in, want := range cases {
 		if got := base64Encode(in); got != want {
