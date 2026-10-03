@@ -6,6 +6,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-03
+
+Requires GoatFlow 0.10.0 or later (the host now enforces declared plugin permissions).
+
 ### Fixed
 - **5xx responses no longer leak internal error text.** Database, storage, template and Zinc errors
   are logged server-side via the host logger; the client gets a generic `"<operation> failed"`
