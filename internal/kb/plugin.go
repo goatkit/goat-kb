@@ -28,14 +28,14 @@ func New() *Plugin {
 func (p *Plugin) GKRegister() (*plugin.GKRegistration, error) {
 	return &plugin.GKRegistration{
 		Name:        "goat-kb",
-		Version:     "0.1.0",
+		Version:     "0.2.0",
 		Description: "Knowledge Base plugin with zinc search, OTRS import, and multi-tenant RBAC",
 		Author:      "GoatKit Team",
 		License:     "Apache-2.0",
 		Homepage:    "https://github.com/goatkit/goat-kb",
 		Icon:        "https://raw.githubusercontent.com/goatkit/goat-kb/main/icon.svg",
 
-		MinHostVersion: "0.9.0",
+		MinHostVersion: "0.10.0",
 
 		Groups: []plugin.GroupSpec{
 			{Name: "kb-admin", Description: "KB administrators — manage articles and imports"},

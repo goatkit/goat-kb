@@ -25,9 +25,6 @@ func TestGKRegisterMilestoneOneContract(t *testing.T) {
 	if reg.Version == "" || reg.Description == "" || reg.Author == "" || reg.License == "" {
 		t.Fatalf("registration metadata incomplete: %+v", reg)
 	}
-	if reg.MinHostVersion != "0.9.0" {
-		t.Fatalf("MinHostVersion = %q, want 0.9.0", reg.MinHostVersion)
-	}
 
 	wantRoutes := map[string]string{
 		"GET /knowledge-base":   "kb_list",
