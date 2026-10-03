@@ -7,6 +7,9 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [Unreleased]
 
 ### Fixed
+- **5xx responses no longer leak internal error text.** Database, storage, template and Zinc errors
+  are logged server-side via the host logger; the client gets a generic `"<operation> failed"`
+  message with the same status code.
 - **Deleting a just-uploaded attachment deleted another article's file.** The upload answered with
   `DBExec`'s rows-affected count (always 1) as the attachment id, so the editor's delete and
   download buttons acted on attachment 1 of whichever article owned it. The upload now reads the new

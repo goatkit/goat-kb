@@ -134,7 +134,7 @@ func (p *Plugin) handleAttachmentUpload(ctx context.Context, args json.RawMessag
 	artRows, err := p.host.DBQuery(ctx,
 		"SELECT id FROM gk_kb_articles WHERE id = ? AND org_id = ?", articleID, orgID)
 	if err != nil {
-		return errorResponse(500, "check article: "+err.Error())
+		return internalError(ctx, p.host, 500, "check article", err)
 	}
 	if len(artRows) == 0 {
 		return errorResponse(404, "article not found")
@@ -180,7 +180,7 @@ func (p *Plugin) handleAttachmentUpload(ctx context.Context, args json.RawMessag
 		"content_type": contentType,
 	})
 	if err != nil {
-		return errorResponse(500, "store file: "+err.Error())
+		return internalError(ctx, p.host, 500, "store file", err)
 	}
 
 	// Insert the DB row.
@@ -189,7 +189,7 @@ func (p *Plugin) handleAttachmentUpload(ctx context.Context, args json.RawMessag
 		orgID, articleID, fileKey, filename, contentType, len(data))
 	if err != nil {
 		_ = p.host.DeleteFile(ctx, fileKey) // best-effort cleanup
-		return errorResponse(500, "insert attachment: "+err.Error())
+		return internalError(ctx, p.host, 500, "insert attachment", err)
 	}
 
 	// HostAPI DBExec returns rows affected, not the insert id: read the new
@@ -259,7 +259,7 @@ func (p *Plugin) handleAttachmentDelete(ctx context.Context, args json.RawMessag
 		"SELECT file_key, filename FROM gk_kb_attachments WHERE id = ? AND article_id = ? AND org_id = ?",
 		attachID, articleID, orgID)
 	if err != nil {
-		return errorResponse(500, "query attachment: "+err.Error())
+		return internalError(ctx, p.host, 500, "query attachment", err)
 	}
 	if len(rows) == 0 {
 		return errorResponse(404, "attachment not found")
@@ -273,7 +273,7 @@ func (p *Plugin) handleAttachmentDelete(ctx context.Context, args json.RawMessag
 	_, err = p.host.DBExec(ctx,
 		"DELETE FROM gk_kb_attachments WHERE id = ? AND article_id = ? AND org_id = ?", attachID, articleID, orgID)
 	if err != nil {
-		return errorResponse(500, "delete attachment: "+err.Error())
+		return internalError(ctx, p.host, 500, "delete attachment", err)
 	}
 
 	p.host.Log(ctx, "info", "kb: attachment deleted", map[string]any{
@@ -331,7 +331,7 @@ func (p *Plugin) handleAttachmentDownload(ctx context.Context, args json.RawMess
 		 JOIN gk_kb_articles art ON art.id = a.article_id
 		 WHERE a.id = ? AND a.org_id = ?`, attachID, orgID)
 	if err != nil {
-		return errorResponse(500, "query attachment: "+err.Error())
+		return internalError(ctx, p.host, 500, "query attachment", err)
 	}
 	if len(rows) == 0 {
 		return errorResponse(404, "attachment not found")
@@ -344,7 +344,7 @@ func (p *Plugin) handleAttachmentDownload(ctx context.Context, args json.RawMess
 
 	data, _, err := p.host.GetFile(ctx, toString(row["file_key"]))
 	if err != nil {
-		return errorResponse(500, "retrieve file: "+err.Error())
+		return internalError(ctx, p.host, 500, "retrieve file", err)
 	}
 
 	return json.Marshal(map[string]string{

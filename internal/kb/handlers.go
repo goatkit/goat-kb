@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/microcosm-cc/bluemonday"
+	plugin "github.com/goatkit/goatflow/pkg/plugin"
 )
 
 // --- request context ---
@@ -206,7 +207,7 @@ func (p *Plugin) handleRecentWidget(ctx context.Context, args json.RawMessage) (
 	rows, err := p.host.DBQuery(ctx,
 		"SELECT id, title, summary, updated_at FROM gk_kb_articles WHERE org_id = ? AND status = 'published'"+visClause+" ORDER BY updated_at DESC LIMIT 5",
 		orgID)
-	if err != nil { return errorResponse(500, "query recent articles: "+err.Error()) }
+	if err != nil { return internalError(ctx, p.host, 500, "query recent articles", err) }
 
 	type articleRow struct {
 		ID          int64
@@ -227,7 +228,7 @@ func (p *Plugin) handleRecentWidget(ctx context.Context, args json.RawMessage) (
 	}
 
 	html, err := p.render("widget_recent.pongo2", ctx, map[string]any{"articles": articles})
-	if err != nil { return errorResponse(500, "render template: "+err.Error()) }
+	if err != nil { return internalError(ctx, p.host, 500, "render template", err) }
 	return json.Marshal(map[string]string{"html": html})
 }
 
@@ -300,7 +301,7 @@ func (p *Plugin) handleSearch(ctx context.Context, args json.RawMessage) (json.R
 	if orgID == 0 { orgID = 1 }
 	zres, err := p.zinc.search(ctx, params.Query, orgID, params.Page, params.PerPage, rc.maxVisibilityFilter())
 	if err != nil {
-		return errorResponse(502, "zinc search failed: "+err.Error())
+		return internalError(ctx, p.host, 502, "search", err)
 	}
 
 	hits := make([]searchHit, 0, len(zres.Hits.Hits))
@@ -484,7 +485,7 @@ func (p *Plugin) handleImport(ctx context.Context, args json.RawMessage) (json.R
 			"org_id": orgID,
 			"error":  err.Error(),
 		})
-		return errorResponse(500, err.Error())
+		return errorResponse(500, "OTRS FAQ import failed")
 	}
 
 	p.host.Log(ctx, "info", "OTRS FAQ import complete", map[string]any{
@@ -567,6 +568,15 @@ func splitTags(s string) []string {
 // dynamic router honours {"error": msg, "status": N} (N in 400–599) and maps
 // it to the matching HTTP status, so plugins can signal 400/404/500 etc.
 // without the host falling back to 200-OK-with-error-body.
+// internalError logs err server-side and answers with a generic message naming
+// op, so driver/upstream error detail never reaches the client.
+func internalError(ctx context.Context, host plugin.HostAPI, code int, op string, err error) (json.RawMessage, error) {
+	if host != nil {
+		host.Log(ctx, "error", "kb: "+op+" failed", map[string]any{"error": err.Error()})
+	}
+	return errorResponse(code, op+" failed")
+}
+
 func errorResponse(code int, msg string) (json.RawMessage, error) {
 	return json.Marshal(map[string]any{
 		"error":  msg,
@@ -654,7 +664,7 @@ func (p *Plugin) handleAdminList(ctx context.Context, args json.RawMessage) (jso
     rows, err := p.host.DBQuery(ctx,
         "SELECT id, title, summary, category, visibility, status, author, created_at, updated_at FROM gk_kb_articles WHERE "+where+" ORDER BY updated_at DESC LIMIT ? OFFSET ?",
         a...)
-    if err != nil { return errorResponse(500, "query articles: " + err.Error()) }
+    if err != nil { return internalError(ctx, p.host, 500, "query articles", err) }
     articles := make([]articleSummary, 0, len(rows))
     for _, row := range rows {
         articles = append(articles, articleSummary{
@@ -670,7 +680,7 @@ func (p *Plugin) handleAdminList(ctx context.Context, args json.RawMessage) (jso
     if filterScope != "" { ca = append(ca, filterScope) }
     if filterStatus != "" { ca = append(ca, filterStatus) }
     cr, err := p.host.DBQuery(ctx, "SELECT COUNT(*) as total FROM gk_kb_articles WHERE "+where, ca...)
-    if err != nil { return errorResponse(500, "count articles: " + err.Error()) }
+    if err != nil { return internalError(ctx, p.host, 500, "count articles", err) }
     totalCount := int64(0)
     if len(cr) > 0 { totalCount = toInt64(cr[0]["total"]) }
     totalPages := int(totalCount + int64(params.PerPage) - 1) / int(params.PerPage)
@@ -704,7 +714,7 @@ func (p *Plugin) handleAdminList(ctx context.Context, args json.RawMessage) (jso
         "FilterScope":    filterScope,
         "FilterStatus":   filterStatus,
     })
-    if err != nil { return errorResponse(500, "render template: "+err.Error()) }
+    if err != nil { return internalError(ctx, p.host, 500, "render template", err) }
     return json.Marshal(map[string]string{
         "html": html, "title": "Knowledge Base", "active_page": "kb-admin",
     })
@@ -1167,7 +1177,7 @@ func (p *Plugin) handleAdminArticleDelete(ctx context.Context, args json.RawMess
 	p.deleteArticleAttachments(ctx, orgID, id)
 
 	_, err = p.host.DBExec(ctx, "DELETE FROM gk_kb_articles WHERE id = ? AND org_id = ?", id, orgID)
-	if err != nil { return errorResponse(500, "delete article: "+err.Error()) }
+	if err != nil { return internalError(ctx, p.host, 500, "delete article", err) }
 
 	return json.Marshal(map[string]string{"status": "deleted"})
 }
@@ -1197,7 +1207,7 @@ func (p *Plugin) handleAdminCategories(ctx context.Context, args json.RawMessage
 		"SELECT c.id, c.name, COUNT(a.id) AS article_count FROM gk_kb_categories c LEFT JOIN gk_kb_articles a ON a.category = c.name AND a.org_id = c.org_id WHERE c.org_id = ? GROUP BY c.id, c.name ORDER BY c.name",
 		orgID)
 	if err != nil {
-		return errorResponse(500, "query categories: "+err.Error())
+		return internalError(ctx, p.host, 500, "query categories", err)
 	}
 
 	type catRow struct {
@@ -1218,7 +1228,7 @@ func (p *Plugin) handleAdminCategories(ctx context.Context, args json.RawMessage
 		"Categories": categories,
 	})
 	if err != nil {
-		return errorResponse(500, "render template: "+err.Error())
+		return internalError(ctx, p.host, 500, "render template", err)
 	}
 
 	return json.Marshal(map[string]string{
@@ -1261,7 +1271,7 @@ func (p *Plugin) handleAdminCategoryAction(ctx context.Context, orgID int64, act
 		_, err := p.host.DBExec(ctx,
 			"DELETE FROM gk_kb_categories WHERE id = ? AND org_id = ?",
 			id, orgID)
-		if err != nil { return errorResponse(500, "delete category: "+err.Error()) }
+		if err != nil { return internalError(ctx, p.host, 500, "delete category", err) }
 		return json.Marshal(map[string]string{"status": "deleted"})
 
 	default:
@@ -1313,7 +1323,7 @@ func (p *Plugin) handleAdminArticleUpdate(ctx context.Context, args json.RawMess
     if orgID == 0 { orgID = 1 }
     if updateReq.ID < 0 { return errorResponse(400, "invalid article id: ID must not be negative") }
     existing, err := p.host.DBQuery(ctx, "SELECT id FROM gk_kb_articles WHERE id = ? AND org_id = ?", updateReq.ID, orgID)
-    if err != nil { return errorResponse(500, "check article: "+err.Error()) }
+    if err != nil { return internalError(ctx, p.host, 500, "check article", err) }
     if len(existing) == 0 {
         slug := updateReq.Title
         if slug == "" { slug = fmt.Sprintf("article-%d", time.Now().Unix()) }
@@ -1328,7 +1338,7 @@ func (p *Plugin) handleAdminArticleUpdate(ctx context.Context, args json.RawMess
             orgID, updateReq.Title, slug, updateReq.Summary,
             updateReq.Content, updateReq.Category, vis,
             updateReq.Author, status, updateReq.Tags)
-        if err != nil { return errorResponse(500, "insert article: "+err.Error()) }
+        if err != nil { return internalError(ctx, p.host, 500, "insert article", err) }
         return json.Marshal(map[string]string{"status": "created"})
     }
     var sets []string
@@ -1347,7 +1357,7 @@ func (p *Plugin) handleAdminArticleUpdate(ctx context.Context, args json.RawMess
     vals = append(vals, orgID)
     query := fmt.Sprintf("UPDATE gk_kb_articles SET %s WHERE id = ? AND org_id = ?", strings.Join(sets, ", "))
     _, err = p.host.DBExec(ctx, query, vals...)
-    if err != nil { return errorResponse(500, "update article: "+err.Error()) }
+    if err != nil { return internalError(ctx, p.host, 500, "update article", err) }
     return json.Marshal(map[string]string{"status": "updated"})
 }
 
@@ -1376,7 +1386,7 @@ func (p *Plugin) handleCustomerList(ctx context.Context, args json.RawMessage) (
 	a = append(a, perPage, offset)
 
 	rows, err := p.host.DBQuery(ctx, "SELECT id, title, summary, category, updated_at FROM gk_kb_articles WHERE "+where+" ORDER BY updated_at DESC LIMIT ? OFFSET ?", a...)
-	if err != nil { return errorResponse(500, "query articles: "+err.Error()) }
+	if err != nil { return internalError(ctx, p.host, 500, "query articles", err) }
 	type articleRow struct { ID int64; Title string; Summary string; Category string; DateStr string }
 	articles := make([]articleRow, 0, len(rows))
 	for _, row := range rows {
@@ -1405,7 +1415,7 @@ func (p *Plugin) handleCustomerList(ctx context.Context, args json.RawMessage) (
 		"Query": query, "Categories": categories, "FilterCategory": filterCat,
 		"IsAdmin": false, "IsAgent": false, "IsCustomer": true,
 	})
-	if err != nil { return errorResponse(500, "render template: "+err.Error()) }
+	if err != nil { return internalError(ctx, p.host, 500, "render template", err) }
 	return json.Marshal(map[string]string{"html": html})
 }
 
@@ -1452,7 +1462,7 @@ func (p *Plugin) renderArticleDetail(ctx context.Context, args json.RawMessage, 
 	query := "SELECT id, title, summary, content, category, visibility, author, tags, updated_at FROM gk_kb_articles WHERE id = ? AND org_id = ? AND status = 'published'"
 	query += rc.visibilityClause()
 	rows, err := p.host.DBQuery(ctx, query, id, orgID)
-	if err != nil { return errorResponse(500, "query article: "+err.Error()) }
+	if err != nil { return internalError(ctx, p.host, 500, "query article", err) }
 	if len(rows) == 0 { return errorResponse(404, "article not found") }
 
 	row := rows[0]
@@ -1505,7 +1515,7 @@ func (p *Plugin) renderArticleDetail(ctx context.Context, args json.RawMessage, 
 		"RecentArticles":  recent,
 		"Attachments":     p.fetchAttachments(ctx, orgID, id),
 	})
-	if err != nil { return errorResponse(500, "render template: "+err.Error()) }
+	if err != nil { return internalError(ctx, p.host, 500, "render template", err) }
 	return json.Marshal(map[string]string{"html": html})
 }
 
@@ -1537,7 +1547,7 @@ func (p *Plugin) handleAgentList(ctx context.Context, args json.RawMessage) (jso
 	a = append(a, perPage, offset)
 
 	rows, err := p.host.DBQuery(ctx, "SELECT id, title, summary, category, visibility, status, author, updated_at FROM gk_kb_articles"+where+" ORDER BY updated_at DESC LIMIT ? OFFSET ?", a...)
-	if err != nil { return errorResponse(500, "query articles: "+err.Error()) }
+	if err != nil { return internalError(ctx, p.host, 500, "query articles", err) }
 	type articleRow struct {
 		ID int64; Title string; Summary string; Category string; Visibility string; Status string; Author string; DateStr string
 	}
@@ -1570,7 +1580,7 @@ func (p *Plugin) handleAgentList(ctx context.Context, args json.RawMessage) (jso
 		"Query": query, "Categories": categories, "FilterCategory": filterCat, "FilterScope": filterScope, "FilterStatus": filterStatus,
 		"IsAdmin": false, "IsAgent": true, "IsCustomer": false,
 	})
-	if err != nil { return errorResponse(500, "render template: "+err.Error()) }
+	if err != nil { return internalError(ctx, p.host, 500, "render template", err) }
 	return json.Marshal(map[string]string{"html": html})
 }
 
