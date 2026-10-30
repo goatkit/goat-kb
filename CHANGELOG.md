@@ -6,6 +6,15 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-10-30
+
+Requires GoatFlow 0.10.0 or later.
+
+### Added
+- **Release packages carry SLSA build provenance.** The release workflow attests `goat-kb.zip` with
+  GitHub's `attest-build-provenance` (SLSA v1.0 Build Level 2), alongside the existing ed25519
+  signature. Check it with `gh attestation verify goat-kb.zip --repo goatkit/goat-kb`.
+
 ## [0.2.0] - 2026-10-03
 
 Requires GoatFlow 0.10.0 or later (the host now enforces declared plugin permissions).
