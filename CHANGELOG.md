@@ -6,11 +6,20 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-11-02
+
+Requires GoatFlow 0.10.0 or later; the translations of the new messages come with GoatFlow
+0.11.0.
+
+### Added
+- **Apache-2.0 `LICENSE` file.** The licence was declared, but its text was missing from the
+  repository.
+
 ### Fixed
 - **The article editor's attachment and editor messages are translated.** Upload, download and
   delete status messages, the attachment delete prompt, the content placeholder and the save error
-  were hard-coded English; they now use `kb.*` keys, translated in GoatFlow's 15 languages from the
-  GoatFlow release after 0.10.0 (older hosts show the English text). The delete-category prompt
+  were hard-coded English; they now use `kb.*` keys, translated in GoatFlow's 15 languages from
+  GoatFlow 0.11.0 (older hosts show the English text). The delete-category prompt
   closes its quote around the name.
 
 ## [0.2.2] - 2026-11-01

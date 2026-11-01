@@ -230,6 +230,9 @@ var errTestHostNotImplemented = errors.New("not implemented in test host")
 func (h *fakeHost) CreateArticleAttachment(_ context.Context, _, _ int64, _, _ string, _ []byte) (int64, error) {
 	return 0, errTestHostNotImplemented
 }
+func (h *fakeHost) ReadArticleAttachment(_ context.Context, _, _ int64) (plugin.ArticleAttachment, []byte, error) {
+	return plugin.ArticleAttachment{}, nil, errTestHostNotImplemented
+}
 func (h *fakeHost) ListArticleAttachments(_ context.Context, _ int64) ([]plugin.ArticleAttachment, error) {
 	return nil, errTestHostNotImplemented
 }
