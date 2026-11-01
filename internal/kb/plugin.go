@@ -28,7 +28,7 @@ func New() *Plugin {
 func (p *Plugin) GKRegister() (*plugin.GKRegistration, error) {
 	return &plugin.GKRegistration{
 		Name:        "goat-kb",
-		Version:     "0.2.1",
+		Version:         "0.2.2",
 		Description: "Knowledge Base plugin with zinc search, OTRS import, and multi-tenant RBAC",
 		Author:      "GoatKit Team",
 		License:     "Apache-2.0",
