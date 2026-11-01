@@ -104,7 +104,7 @@ function deleteCategory(id, el) {
 	var row = el.closest('tr');
 	var nameCell = row.querySelector('td:first-child span');
 	var name = nameCell.textContent.trim();
-	if (!confirm('{{ t("kb.delete_category_prefix")|default:"Delete category \"" }}' + name + "{{ t("kb.delete_category_suffix")|default:"? Articles using it will keep the name but won't be linked." }}")) return;
+	if (!confirm('{{ t("kb.delete_category_prefix")|default:"Delete category “" }}' + name + "{{ t("kb.delete_category_suffix")|default:"”? Articles using it will keep the name but won’t be linked." }}")) return;
 	fetch('/admin/kb/categories', {
 		method: 'POST',
 		headers: { 'Content-Type': 'application/json' },

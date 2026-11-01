@@ -6,6 +6,13 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Fixed
+- **The article editor's attachment and editor messages are translated.** Upload, download and
+  delete status messages, the attachment delete prompt, the content placeholder and the save error
+  were hard-coded English; they now use `kb.*` keys, translated in GoatFlow's 15 languages from the
+  GoatFlow release after 0.10.0 (older hosts show the English text). The delete-category prompt
+  closes its quote around the name.
+
 ## [0.2.2] - 2026-11-01
 
 Requires GoatFlow 0.10.0 or later.

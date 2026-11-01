@@ -1002,12 +1002,34 @@ func (p *Plugin) handleAdminArticle(ctx context.Context, args json.RawMessage) (
 	if linkPrompt == "" || linkPrompt == "editor.insert_link_prompt" {
 		linkPrompt = "Enter URL:"
 	}
+	// Strings for the editor, tag and attachment scripts below.
+	kbI18n := map[string]string{
+		"download":                  p.tr(ctx, "kb.download", "Download"),
+		"delete":                    p.tr(ctx, "kb.delete", "Delete"),
+		"delete_failed":             strings.TrimSpace(strings.TrimSuffix(p.tr(ctx, "kb.delete_failed", "Delete failed: "), ": ")),
+		"content_placeholder":       p.tr(ctx, "kb.content_placeholder", "Write article content..."),
+		"save_failed":               p.tr(ctx, "kb.save_failed", "Save failed"),
+		"unnamed":                   p.tr(ctx, "kb.unnamed", "(unnamed)"),
+		"choose_file_first":         p.tr(ctx, "kb.choose_file_first", "Choose a file first."),
+		"file_too_large":            p.tr(ctx, "kb.file_too_large", "File too large (max 10 MB)."),
+		"uploading":                 p.tr(ctx, "kb.uploading", "Uploading {name} ..."),
+		"upload_failed":             p.tr(ctx, "kb.upload_failed", "Upload failed"),
+		"uploaded":                  p.tr(ctx, "kb.uploaded", "Uploaded {name}"),
+		"error_prefix":              p.tr(ctx, "kb.error_prefix", "Error: "),
+		"read_failed":               p.tr(ctx, "kb.read_failed", "Failed to read file."),
+		"delete_attachment_confirm": p.tr(ctx, "kb.delete_attachment_confirm", "Delete this attachment?"),
+		"attachment_deleted":        p.tr(ctx, "kb.attachment_deleted", "Attachment deleted."),
+		"preparing_download":        p.tr(ctx, "kb.preparing_download", "Preparing download ..."),
+		"no_data":                   p.tr(ctx, "kb.no_data", "No data returned"),
+		"download_error":            p.tr(ctx, "kb.download_error", "Download error: "),
+	}
+	h.WriteString(fmt.Sprintf("<script>var KB_I18N = %s;</script>\n", jsonMarshalStr(kbI18n)))
 	h.WriteString(fmt.Sprintf(`<script src="/static/js/gk-editor.js"></script>
 <script>
 (function(){
     GoatKitEditor.init({
         id: 'kbContentEditor',
-        placeholder: 'Write article content...',
+        placeholder: KB_I18N.content_placeholder,
         editorMode: 'richtext',
         content: %s,
         imageUploadUrl: '/admin/kb/article/' + (parseInt(document.getElementById('kb-article-form').elements['id'].value) || 0) + '/attachments',
@@ -1049,7 +1071,7 @@ document.getElementById("kb-article-form").addEventListener("submit", function(e
         body: JSON.stringify(data)
     }).then(function(r) {
         if (r.ok) { var f=document.createElement('form'); f.method='GET'; f.action='/admin/kb'; document.body.appendChild(f); f.submit(); }
-        else r.json().then(function(d) { alert(d.error || "Save failed"); });
+        else r.json().then(function(d) { alert(d.error || KB_I18N.save_failed); });
     });
 });
 </script>`, jsonMarshalStr(sanitiseText(article.Tags)), loginJS))
@@ -1108,7 +1130,7 @@ function kbRenderAttachments() {
         iconWrap.innerHTML = '<i class="fa-solid ' + kbAttachIcon(a.content_type) + '" style="font-size:1rem;color:var(--gk-primary,#89b4fa);"></i>';
         var name = document.createElement('span');
         name.style.cssText = 'flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--gk-text,#cdd6f4);';
-        name.textContent = a.filename || '(unnamed)';
+        name.textContent = a.filename || KB_I18N.unnamed;
         var size = document.createElement('span');
         size.style.cssText = 'font-size:0.75rem;color:var(--gk-text-muted,#888);white-space:nowrap;';
         size.textContent = a.size_human || kbHumanSize(a.size);
@@ -1117,14 +1139,14 @@ function kbRenderAttachments() {
         dl.className = 'gk-btn-secondary';
         dl.style.cssText = 'padding:0.2rem 0.55rem;font-size:0.8rem;';
         dl.innerHTML = '<i class="fa-solid fa-download"></i>';
-        dl.title = 'Download';
+        dl.title = KB_I18N.download;
         dl.onclick = (function(id){ return function(){ kbDownloadAttachment(id); }; })(a.id);
         var del = document.createElement('button');
         del.type = 'button';
         del.className = 'gk-btn-secondary';
         del.style.cssText = 'padding:0.2rem 0.55rem;font-size:0.8rem;color:var(--gk-danger,#f38ba8);';
         del.innerHTML = '<i class="fa-solid fa-trash"></i>';
-        del.title = 'Delete';
+        del.title = KB_I18N.delete;
         del.onclick = (function(id){ return function(){ kbDeleteAttachment(id); }; })(a.id);
         row.appendChild(iconWrap);
         row.appendChild(name);
@@ -1152,10 +1174,10 @@ function kbLoadThumb(id) {
 }
 function kbUploadFile() {
     var input = document.getElementById('kb-attach-file');
-    if (!input || !input.files || !input.files[0]) { kbStatus('Choose a file first.'); return; }
+    if (!input || !input.files || !input.files[0]) { kbStatus(KB_I18N.choose_file_first); return; }
     var f = input.files[0];
-    if (f.size > 10 * 1024 * 1024) { kbStatus('File too large (max 10 MB).'); return; }
-    kbStatus('Uploading ' + f.name + ' ...');
+    if (f.size > 10 * 1024 * 1024) { kbStatus(KB_I18N.file_too_large); return; }
+    kbStatus(KB_I18N.uploading.replace('{name}', f.name));
     var reader = new FileReader();
     reader.onload = function() {
         var dataUrl = reader.result || '';
@@ -1166,7 +1188,7 @@ function kbUploadFile() {
             headers: {'Content-Type': 'application/json'},
             body: JSON.stringify({id: String(KB_ARTICLE_ID), filename: f.name, content_type: f.type || 'application/octet-stream', data: base64})
         }).then(function(r) {
-            if (!r.ok) return r.json().then(function(d){ throw new Error((d && d.error) || 'Upload failed'); });
+            if (!r.ok) return r.json().then(function(d){ throw new Error((d && d.error) || KB_I18N.upload_failed); });
             return r.json();
         }).then(function(d) {
             var items = kbAttachData();
@@ -1174,27 +1196,27 @@ function kbUploadFile() {
             kbSetAttachData(items);
             kbRenderAttachments();
             input.value = '';
-            kbStatus('Uploaded ' + (d.filename || f.name));
-        }).catch(function(e) { kbStatus('Error: ' + e.message); });
+            kbStatus(KB_I18N.uploaded.replace('{name}', d.filename || f.name));
+        }).catch(function(e) { kbStatus(KB_I18N.error_prefix + e.message); });
     };
-    reader.onerror = function() { kbStatus('Failed to read file.'); };
+    reader.onerror = function() { kbStatus(KB_I18N.read_failed); };
     reader.readAsDataURL(f);
 }
 function kbDeleteAttachment(id) {
-    if (!confirm('Delete this attachment?')) return;
+    if (!confirm(KB_I18N.delete_attachment_confirm)) return;
     fetch('/admin/kb/article/' + KB_ARTICLE_ID + '/attachments/' + id, {method: 'DELETE'})
         .then(function(r) {
-            if (!r.ok) return r.json().then(function(d){ throw new Error((d && d.error) || 'Delete failed'); });
+            if (!r.ok) return r.json().then(function(d){ throw new Error((d && d.error) || KB_I18N.delete_failed); });
             var items = kbAttachData().filter(function(a){ return a.id !== id; });
             kbSetAttachData(items);
             kbRenderAttachments();
-            kbStatus('Attachment deleted.');
-        }).catch(function(e) { kbStatus('Error: ' + e.message); });
+            kbStatus(KB_I18N.attachment_deleted);
+        }).catch(function(e) { kbStatus(KB_I18N.error_prefix + e.message); });
 }
 function kbDownloadAttachment(id) {
-    kbStatus('Preparing download ...');
+    kbStatus(KB_I18N.preparing_download);
     fetch('/kb/attachment/' + id).then(function(r){ return r.json(); }).then(function(d) {
-        if (!d || d.error || !d.data) throw new Error((d && d.error) || 'No data returned');
+        if (!d || d.error || !d.data) throw new Error((d && d.error) || KB_I18N.no_data);
         var bin = atob(d.data);
         var bytes = new Uint8Array(bin.length);
         for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -1207,7 +1229,7 @@ function kbDownloadAttachment(id) {
         a.click();
         setTimeout(function(){ if (a.parentNode) a.parentNode.removeChild(a); URL.revokeObjectURL(url); }, 200);
         kbStatus('');
-    }).catch(function(e) { kbStatus('Download error: ' + e.message); });
+    }).catch(function(e) { kbStatus(KB_I18N.download_error + e.message); });
 }
 (function(){ if (document.getElementById('kb-attachments-list')) kbRenderAttachments(); })();
 </script>`, article.ID))
