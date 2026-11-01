@@ -153,7 +153,8 @@ Build occurs inside a Docker container so there's no local Go toolchain requirem
 ```sh
 make build       # Build the binary
 make test        # Run all tests
-make package     # Create bin/kb.zip (binary + plugin.yaml)
+make package     # Create bin/goat-kb.zip (binary + plugin.yaml)
+make sign KEY=… # Sign the binary (kb.sig goes in the zip), then the zip
 make deploy      # Upload to GoatFlow via API
 ```
 

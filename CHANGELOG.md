@@ -6,6 +6,11 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+### Changed
+- **The plugin binary is signed too.** `make sign` signs the `kb` binary and puts its
+  `.sig` in the package, then signs the package. GoatFlow requires the binary signature to load
+  a plugin; the package signature alone is no longer enough.
+
 ## [0.2.1] - 2026-10-30
 
 Requires GoatFlow 0.10.0 or later.

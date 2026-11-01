@@ -64,7 +64,8 @@ package: build
 	@cd $(BUILD_DIR) && cp ../plugin.yaml . && zip -q -r $(PACKAGE_NAME).zip $(PLUGIN_BINARY) plugin.yaml && rm -f plugin.yaml
 	@echo "Package: $(BUILD_DIR)/$(PACKAGE_NAME).zip"
 
-## sign: Sign the plugin package with an ed25519 key (KEY=<hex-private-key> or GOATFLOW_SIGNING_KEY env)
+## sign: Sign the plugin binary (its .sig goes into the package, for GoatFlow's load-time check)
+## and then the package, with an ed25519 key (KEY=<hex-private-key> or GOATFLOW_SIGNING_KEY env)
 sign: package
 	@KEY="$(KEY)"; \
 	if [ -z "$$KEY" ]; then KEY=$${GOATFLOW_SIGNING_KEY:-}; fi; \
@@ -82,7 +83,9 @@ sign: package
 		-e GOTOOLCHAIN=auto \
 		-e GOMODCACHE=/src/.gomod \
 		-e GOTMPDIR=/src/.tmp \
-		$(GO_IMAGE) sh -c "mkdir -p /src/.gocache /src/.gomod /src/.tmp && go run ./cmd/gk sign /src/$(BUILD_DIR)/$(PACKAGE_NAME).zip --key $$KEY"
+		$(GO_IMAGE) sh -c "mkdir -p /src/.gocache /src/.gomod /src/.tmp && go build -o /src/.tmp/gk ./cmd/gk && /src/.tmp/gk sign /src/$(BUILD_DIR)/$(PLUGIN_BINARY) --key $$KEY" && \
+	cd $(BUILD_DIR) && zip -q $(PACKAGE_NAME).zip $(PLUGIN_BINARY).sig && cd .. && \
+	docker run --rm -u "$$(id -u):$$(id -g)" -v "$(CURDIR)":/src $(GO_IMAGE) /src/.tmp/gk sign /src/$(BUILD_DIR)/$(PACKAGE_NAME).zip --key $$KEY
 
 ## keygen: Generate a new ed25519 signing key pair
 keygen:
