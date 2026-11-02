@@ -6,10 +6,14 @@ The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
-## [0.2.3] - 2026-11-02
+## [0.2.4] - 2026-11-02
 
 Requires GoatFlow 0.10.0 or later; the translations of the new messages come with GoatFlow
-0.11.0.
+0.11.0. The v0.2.3 tag has no release: its build failed on an out-of-date `go.sum`.
+
+### Changed
+- **Built with Go 1.26.10 against GoatFlow 0.11.0.** `go.mod` and `go.sum` follow GoatFlow
+  0.11.0's dependencies, and `make build` uses `golang:1.26.10-alpine`.
 
 ### Added
 - **Apache-2.0 `LICENSE` file.** The licence was declared, but its text was missing from the

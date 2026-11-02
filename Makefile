@@ -12,7 +12,7 @@ CMD_DIR := ./cmd/kb-plugin
 VERSION := $(shell git describe --tags --exact-match 2>/dev/null || git rev-parse --abbrev-ref HEAD 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X main.Version=$(VERSION)
 GOATFLOW_URL ?= http://localhost:8080
-GO_IMAGE ?= golang:1.25.12-alpine
+GO_IMAGE ?= golang:1.26.10-alpine
 
 build:
 	@echo "Building $(PLUGIN_BINARY) $(VERSION)..."
